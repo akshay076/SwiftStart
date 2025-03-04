@@ -1,0 +1,6 @@
+"node_modules/" 
+"variables.env" 
+"*.env" 
+"node_modules/"  "variables.env"  "*.env" 
+node_modules/  variables.env  *.env 
+*.env 
