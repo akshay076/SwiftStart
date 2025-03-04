@@ -92,6 +92,62 @@ async function handleAskBuddyCommand(payload) {
 }
 
 /**
+ * Create checklist blocks with proper UI colors
+ * @param {string} category - Category name
+ * @param {Array} items - Items in the category
+ * @param {string} checklistId - ID of the checklist
+ * @returns {Array} - Blocks for the category
+ */
+function createCategoryBlocks(category, items, checklistId) {
+  const blocks = [];
+  
+  // Add category header context block
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: "Click the buttons to mark items as complete:"
+      }
+    ]
+  });
+  
+  // Add each item with a button that follows standard UI conventions
+  for (const item of items) {
+    const actionId = `tgl_${checklistId.substring(0, 4)}_${item.id.substring(0, 8)}`;
+    
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: item.completed ? "✓" : "○", // Empty circle if not completed, checkmark if completed
+            emoji: true
+          },
+          style: item.completed ? "primary" : "danger", // Green if completed, red if not
+          value: "toggle",
+          action_id: actionId
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: item.text,
+            emoji: true
+          },
+          value: "view",
+          action_id: `view_${actionId}`
+        }
+      ]
+    });
+  }
+  
+  return blocks;
+}
+
+/**
  * Handle the /create-checklist command with improved UI
  * @param {object} payload - The Slack command payload
  * @returns {Promise<void>}
@@ -151,51 +207,8 @@ async function handleCreateChecklistCommand(payload) {
           
           console.log(`Sending category ${category} with ${items.length} items`);
           
-          // Create blocks for all items in this category
-          const blocks = [];
-          
-          // First add a context block to explain how to use the actions
-          blocks.push({
-            type: "context",
-            elements: [
-              {
-                type: "mrkdwn",
-                text: "Click the buttons to mark items as complete:"
-              }
-            ]
-          });
-          
-          // Add each item with a compact button
-          for (const item of items) {
-            const actionId = `tgl_${item.id.substring(0, 8)}`;
-            
-            blocks.push({
-              type: "actions",
-              elements: [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "✓",  // Checkmark
-                    emoji: true
-                  },
-                  value: "complete",
-                  action_id: actionId,
-                  style: "primary" // Green button
-                },
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: item.text,
-                    emoji: true
-                  },
-                  value: "view",
-                  action_id: `view_${actionId}`
-                }
-              ]
-            });
-          }
+          // Create blocks for this category with proper UI
+          const blocks = createCategoryBlocks(category, items, checklistId);
           
           // Send the blocks for this category
           try {

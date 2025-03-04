@@ -1,6 +1,8 @@
 // handlers/interactions.js
 const checklistController = require('../controllers/checklist');
 const slackService = require('../services/slack');
+const axios = require('axios');
+const config = require('../config');
 
 /**
  * Handle Slack interactive components
@@ -16,6 +18,7 @@ const handleInteractions = async (req, res) => {
     const payload = JSON.parse(req.body.payload);
     
     console.log('Interaction received:', payload.type);
+    console.log('Action IDs:', payload.actions?.map(a => a.action_id).join(', '));
     
     switch (payload.type) {
       case 'block_actions':
@@ -45,22 +48,15 @@ const handleBlockActions = async (payload) => {
   for (const action of actions) {
     console.log('Processing action:', action.action_id);
     
-    if (action.type === 'checkboxes') {
-      // Handle checklist item toggles with various possible action ID formats
-      if (action.action_id.startsWith('toggle_') || 
-          action.action_id.startsWith('tgl_')) {
-        await handleItemToggle(action, user.id, channel.id);
-      }
-    } else if (action.type === 'button') {
-      // Handle button clicks with various possible action ID formats
-      if (action.action_id.startsWith('view_prog_') || 
-          action.action_id.startsWith('view_progress_') || 
-          action.action_id.startsWith('vp_')) {
-        await handleViewProgress(action, payload);
-      } else if (action.action_id.startsWith('view_emp_') || 
-                action.action_id.startsWith('view_employee_progress_')) {
-        await handleViewEmployeeProgress(action, payload);
-      }
+    if (action.action_id.startsWith('tgl_')) {
+      // Handle checklist item toggle button clicks
+      await handleItemToggle(action, payload, user.id, channel.id);
+    } else if (action.action_id.startsWith('view_tgl_')) {
+      // This is just a view action, no need to do anything
+      console.log('Item text button clicked, no action needed');
+    } else if (action.action_id.startsWith('vp_')) {
+      // Handle view progress button
+      await handleViewProgress(action, payload);
     }
   }
 };
@@ -68,11 +64,14 @@ const handleBlockActions = async (payload) => {
 /**
  * Handle item toggle button click
  * @param {object} action - The action data
+ * @param {object} payload - The full payload
  * @param {string} userId - The user ID who performed the action
  * @param {string} channelId - The channel ID where the action was performed
  */
-async function handleItemToggle(action, userId, channelId) {
+async function handleItemToggle(action, payload, userId, channelId) {
   try {
+    console.log('Handling item toggle from button click:', action);
+    
     // Extract item ID from action_id format: tgl_[itemId]
     const itemIdPart = action.action_id.replace('tgl_', '');
     
@@ -101,10 +100,10 @@ async function handleItemToggle(action, userId, channelId) {
       return;
     }
     
-    // Set item as completed (button toggle always sets to completed state)
-    const isCompleted = true;
+    // Toggle the completion state (if it's already completed, uncomplete it)
+    const isCompleted = !targetItem.completed;
     
-    console.log(`Updating item ${targetItem.id} in checklist ${targetChecklist.id} to completed`);
+    console.log(`Updating item ${targetItem.id} in checklist ${targetChecklist.id} to ${isCompleted ? 'completed' : 'not completed'}`);
     
     const updated = checklistController.updateChecklistItemStatus(
       targetChecklist.id,
@@ -113,41 +112,59 @@ async function handleItemToggle(action, userId, channelId) {
     );
     
     if (updated) {
-      // Update the message to show item is complete
       try {
-        // Get the original message
-        const result = await axios.post('https://slack.com/api/chat.update', {
-          channel: channelId,
-          ts: action.block_id.split('-')[1], // Extract timestamp from block_id
-          text: `Items for ${targetItem.category}`,
-          blocks: action.blocks.map(block => {
-            // Find and update the specific button that was clicked
-            if (block.type === 'actions') {
-              block.elements = block.elements.map(element => {
+        // Find which action button was clicked
+        const clickedActionIndex = payload.actions.findIndex(a => a.action_id === action.action_id);
+        
+        if (clickedActionIndex === -1) {
+          console.error('Could not find clicked action in payload');
+          return;
+        }
+        
+        // Get updated blocks - ONLY update the specific block that contains the clicked button
+        const updatedBlocks = payload.message.blocks.map((block, blockIndex) => {
+          // Only update the actions block that contains our button
+          if (block.type === 'actions') {
+            // Check if this block contains our button
+            const hasTargetButton = block.elements.some(element => 
+              element.action_id === action.action_id
+            );
+            
+            if (hasTargetButton) {
+              // This is the block that contains our button, update it
+              const updatedElements = block.elements.map(element => {
                 if (element.action_id === action.action_id) {
-                  // Change button to show completed state
-                  element.text.text = "✓"; // Keep checkmark
-                  element.style = "danger"; // Change to red to indicate completed
-                  element.confirm = {
-                    title: {
-                      type: "plain_text",
-                      text: "Task already completed"
-                    },
+                  // Update the specific button that was clicked
+                  // Follow standard UI conventions:
+                  // - Completed tasks have GREEN buttons with a checkmark ✓
+                  // - Incomplete tasks have RED buttons with an empty circle ○
+                  return {
+                    ...element,
+                    style: isCompleted ? "primary" : "danger",  // Green if completed, Red if not
                     text: {
-                      type: "mrkdwn",
-                      text: "This task is marked as complete. No further action needed."
-                    },
-                    confirm: {
                       type: "plain_text",
-                      text: "OK"
+                      text: isCompleted ? "✓" : "○",  // Checkmark if completed, empty circle if not
+                      emoji: true
                     }
                   };
                 }
                 return element;
               });
+              
+              return {
+                ...block,
+                elements: updatedElements
+              };
             }
-            return block;
-          })
+          }
+          return block;
+        });
+        
+        // Update the message
+        const result = await axios.post('https://slack.com/api/chat.update', {
+          channel: channelId,
+          ts: payload.message.ts,
+          blocks: updatedBlocks
         }, {
           headers: {
             'Authorization': `Bearer ${config.slack.botToken}`,
@@ -157,14 +174,27 @@ async function handleItemToggle(action, userId, channelId) {
         
         if (!result.data.ok) {
           console.error('Failed to update message:', result.data.error);
+        } else {
+          console.log('Successfully updated message appearance');
         }
+        
+        // Notify the manager of progress if item was completed
+        if (isCompleted) {
+          console.log('Notifying manager of progress update');
+          await notifyManagerOfProgress(targetChecklist, targetItem.id, userId);
+        }
+        
+        // Send a confirmation message to the user
+        await slackService.sendMessage(
+          channelId,
+          isCompleted 
+            ? `✅ You marked *${targetItem.text}* as complete`
+            : `⭕ You marked *${targetItem.text}* as incomplete`
+        );
+        
       } catch (updateError) {
-        console.error('Error updating message:', updateError.message);
+        console.error('Error updating message:', updateError);
       }
-      
-      // Notify the manager of progress
-      console.log('Notifying manager of progress update');
-      await notifyManagerOfProgress(targetChecklist, targetItem.id, userId);
     }
   } catch (error) {
     console.error('Error handling item toggle:', error);
@@ -270,8 +300,9 @@ async function handleViewProgress(action, payload) {
     
     // Calculate progress
     const progress = checklistController.calculateChecklistProgress(targetChecklist);
+    console.log('Calculated progress:', progress);
     
-    // Send progress summary directly in channel instead of using a modal
+    // Send progress summary directly in channel
     const headerBlocks = [
       {
         type: "header",
@@ -370,184 +401,6 @@ async function handleViewProgress(action, payload) {
     await slackService.sendMessage(
       payload.channel.id,
       "Sorry, I encountered an error showing your progress. Please try again."
-    );
-  }
-}
-
-/**
- * Handle view employee progress button click
- * @param {object} action - The action data
- * @param {object} payload - The full payload
- */
-async function handleViewEmployeeProgress(action, payload) {
-  try {
-    // Extract checklist ID from action_id
-    const checklistIdPart = action.action_id.replace('view_emp_', '');
-    
-    // Find the full checklist ID that starts with this part
-    const checklists = checklistController.getAllChecklists();
-    
-    let targetChecklist = null;
-    
-    for (const checklist of Object.values(checklists)) {
-      if (checklist.id.startsWith(checklistIdPart)) {
-        targetChecklist = checklist;
-        break;
-      }
-    }
-    
-    if (!targetChecklist) {
-      console.error('Could not find checklist for action:', action.action_id);
-      return;
-    }
-    
-    // Verify the requester is the manager
-    if (payload.user.id !== targetChecklist.managerId) {
-      await slackService.sendMessage(
-        payload.channel.id, 
-        "Sorry, only the manager who created this checklist can view its progress."
-      );
-      return;
-    }
-    
-    // Show the progress
-    await showChecklistProgress(targetChecklist, payload.channel.id);
-    
-  } catch (error) {
-    console.error('Error handling view employee progress:', error);
-    await slackService.sendMessage(
-      payload.channel.id,
-      "Sorry, I encountered an error showing the progress. Please try again."
-    );
-  }
-}
-
-/**
- * Show the progress for a checklist
- * @param {object} checklist - The checklist object
- * @param {string} channelId - The channel to send the progress to
- */
-async function showChecklistProgress(checklist, channelId) {
-  try {
-    const progressStats = checklistController.calculateChecklistProgress(checklist);
-    
-    // Create header blocks
-    const headerBlocks = [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: `Onboarding Progress: ${checklist.role}`,
-          emoji: true
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `Progress for <@${checklist.employeeId}>: *${progressStats.completedPercentage}%* complete (${progressStats.completedCount}/${progressStats.totalCount} tasks)`
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: checklistController.createProgressBar(progressStats.completedPercentage)
-        }
-      },
-      {
-        type: "divider"
-      }
-    ];
-    
-    // Send the header
-    await slackService.sendMessageWithBlocks(channelId, 
-      `Onboarding progress for ${checklist.role}`,
-      headerBlocks
-    );
-    
-    // Group items by category
-    const categorizedItems = checklistController.groupItemsByCategory(checklist.items);
-    
-    // Process each category separately
-    for (const [category, items] of Object.entries(categorizedItems)) {
-      // Calculate category progress
-      const totalInCategory = items.length;
-      const completedInCategory = items.filter(item => item.completed).length;
-      const categoryPercentage = Math.round((completedInCategory / totalInCategory) * 100);
-      
-      // Create category blocks
-      const categoryBlocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*${category}* (${completedInCategory}/${totalInCategory} complete - ${categoryPercentage}%)`
-          }
-        }
-      ];
-      
-      // Add all items in this category
-      const itemTexts = items.map(item => {
-        const status = item.completed ? "✅" : "⬜";
-        const completedInfo = item.completed && item.completedAt 
-          ? ` (completed: ${new Date(item.completedAt).toLocaleDateString()})` 
-          : '';
-        return `${status} ${item.text}${completedInfo}`;
-      });
-      
-      // Add item list block (if not too long)
-      if (itemTexts.join("\n").length <= 3000) {
-        categoryBlocks.push({
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: itemTexts.join("\n")
-          }
-        });
-      } else {
-        // Split into completed and pending if too long
-        const completedItems = items.filter(item => item.completed);
-        const pendingItems = items.filter(item => !item.completed);
-        
-        if (completedItems.length > 0) {
-          categoryBlocks.push({
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `*Completed:*\n${completedItems.map(item => {
-                const completedInfo = item.completedAt 
-                  ? ` (${new Date(item.completedAt).toLocaleDateString()})` 
-                  : '';
-                return `✅ ${item.text}${completedInfo}`;
-              }).join('\n')}`
-            }
-          });
-        }
-        
-        if (pendingItems.length > 0) {
-          categoryBlocks.push({
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `*Pending:*\n${pendingItems.map(item => `⬜ ${item.text}`).join('\n')}`
-            }
-          });
-        }
-      }
-      
-      // Add divider
-      categoryBlocks.push({
-        type: "divider"
-      });
-      
-      // Send this category
-      await slackService.sendMessageWithBlocks(channelId, "", categoryBlocks);
-    }
-  } catch (error) {
-    console.error('Error showing checklist progress:', error);
-    await slackService.sendMessage(channelId, 
-      "Sorry, I encountered an error showing progress information."
     );
   }
 }
