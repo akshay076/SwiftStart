@@ -92,7 +92,7 @@ async function handleAskBuddyCommand(payload) {
 }
 
 /**
- * Handle the /create-checklist command (manager-only)
+ * Handle the /create-checklist command with improved UI
  * @param {object} payload - The Slack command payload
  * @returns {Promise<void>}
  */
@@ -144,88 +144,105 @@ async function handleCreateChecklistCommand(payload) {
         // Group items by category
         const categorizedItems = checklistController.groupItemsByCategory(checklistItems);
         
-        // Process each category separately to avoid block limits
+        // Process each category
         for (const [category, items] of Object.entries(categorizedItems)) {
-          // Send category header
-          await slackService.sendMessage(
-            dmChannelId,
-            `*${category}*`
-          );
+          // Send a bold header for the category
+          await slackService.sendMessage(dmChannelId, `*${category}*`);
           
-          // Process items in batches of 5 to stay well within block limits
-          const batchSize = 5;
-          for (let i = 0; i < items.length; i += batchSize) {
-            const batchItems = items.slice(i, i + batchSize);
-            const blocks = [];
+          console.log(`Sending category ${category} with ${items.length} items`);
+          
+          // Create blocks for all items in this category
+          const blocks = [];
+          
+          // First add a context block to explain how to use the actions
+          blocks.push({
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: "Click the buttons to mark items as complete:"
+              }
+            ]
+          });
+          
+          // Add each item with a compact button
+          for (const item of items) {
+            const actionId = `tgl_${item.id.substring(0, 8)}`;
             
-            // Add each item as a section with checkbox
-            batchItems.forEach(item => {
-              blocks.push({
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: item.text
+            blocks.push({
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: {
+                    type: "plain_text",
+                    text: "✓",  // Checkmark
+                    emoji: true
+                  },
+                  value: "complete",
+                  action_id: actionId,
+                  style: "primary" // Green button
                 },
-                accessory: {
-                  type: "checkboxes",
-                  action_id: `toggle_${checklistId.substring(0, 5)}_${item.id.substring(0, 5)}`,
-                  options: [
-                    {
-                      text: {
-                        type: "plain_text",
-                        text: "Complete",
-                        emoji: true
-                      },
-                      value: "complete"
-                    }
-                  ],
-                  initial_options: item.completed ? [
-                    {
-                      text: {
-                        type: "plain_text",
-                        text: "Complete",
-                        emoji: true
-                      },
-                      value: "complete"
-                    }
-                  ] : []
+                {
+                  type: "button",
+                  text: {
+                    type: "plain_text",
+                    text: item.text,
+                    emoji: true
+                  },
+                  value: "view",
+                  action_id: `view_${actionId}`
                 }
-              });
+              ]
             });
+          }
+          
+          // Send the blocks for this category
+          try {
+            await slackService.sendMessageWithBlocks(dmChannelId, 
+              `Items for ${category}`, 
+              blocks
+            );
+          } catch (error) {
+            console.error(`Failed to send blocks for category "${category}":`, error.message);
             
-            // Send this batch of items
-            await slackService.sendMessageWithBlocks(dmChannelId, "", blocks);
-            
-            // Add a small delay between messages to ensure proper ordering
-            if (i + batchSize < items.length) {
-              await new Promise(resolve => setTimeout(resolve, 300));
+            // Fallback to plain text items
+            for (const item of items) {
+              await slackService.sendMessage(dmChannelId, `• ${item.text}`);
             }
           }
+          
+          // Add a small spacer between categories
+          await slackService.sendMessage(dmChannelId, "ㅤ");
         }
         
         // Add view progress button at the end
-        const progressBlock = [
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "View Progress Summary",
-                  emoji: true
-                },
-                action_id: `view_prog_${checklistId.substring(0, 7)}`,
-                style: "primary"
-              }
-            ]
-          }
-        ];
+        const progressBlock = [{
+          type: "actions",
+          elements: [{
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "View Progress Summary",
+              emoji: true
+            },
+            action_id: `vp_${checklistId.substring(0, 8)}`,
+            style: "primary"
+          }]
+        }];
         
-        await slackService.sendMessageWithBlocks(dmChannelId, 
-          "Track your progress with the button below:",
-          progressBlock
-        );
+        try {
+          await slackService.sendMessageWithBlocks(dmChannelId, 
+            "Track your progress with the button below:",
+            progressBlock
+          );
+        } catch (buttonError) {
+          console.error('Error sending progress button:', buttonError);
+          // Fallback message if button fails
+          await slackService.sendMessage(dmChannelId, 
+            "You can check your progress anytime by asking me 'show my progress'."
+          );
+        }
         
         // Notify the manager that the checklist was sent
         await slackService.sendMessage(channel_id, 
@@ -236,7 +253,7 @@ async function handleCreateChecklistCommand(payload) {
       } catch (error) {
         console.error('Error sending checklist to target user:', error);
         await slackService.sendMessage(channel_id, 
-          `I couldn't send the checklist to @${targetUser}. Please verify the username and try again.`
+          `I couldn't send the checklist to @${targetUser}. Error: ${error.message}`
         );
       }
     } else {
@@ -252,7 +269,6 @@ async function handleCreateChecklistCommand(payload) {
     );
   }
 }
-
 /**
  * Handle the /check-progress command (manager-only)
  * @param {object} payload - The Slack command payload

@@ -104,6 +104,9 @@ async function isUserManager(userId) {
  * @returns {Array} - Array of checklist items with their categories
  */
 function parseChecklistItems(checklistText) {
+  console.log('Parsing checklist text from Langflow:');
+  console.log(checklistText);
+  
   const items = [];
   let currentCategory = "General";
   
@@ -116,25 +119,43 @@ function parseChecklistItems(checklistText) {
     // Skip empty lines
     if (!line) return;
     
-    // Check if this is a category header (markdown heading)
-    if (line.startsWith('##') || line.startsWith('**')) {
-      currentCategory = line.replace(/^##\s*|\*\*/g, '').trim();
+    // Check if this is a category header (matches I., II., etc. or roman numerals or just text with a colon)
+    if (line.match(/^[IVX]+\.\s.*:$/) || // Roman numerals like "I. First Day:"
+        line.match(/^[0-9]+\.\s.*:$/) || // Numeric like "1. First Day:"
+        line.match(/^.*:$/) ||           // Any line ending with colon
+        line.startsWith('##') ||         // Markdown heading 
+        line.startsWith('**')) {         // Bold text
+      
+      // Extract category name, removing any special characters
+      currentCategory = line.replace(/^[IVX]+\.\s|\*\*|##|^[0-9]+\.\s/g, '').replace(/:$/, '').trim();
+      console.log(`Found category: ${currentCategory}`);
     } 
     // Check if this is a checklist item (bullet point)
     else if (line.startsWith('-') || line.startsWith('*') || line.match(/^\d+\.\s/)) {
       const itemText = line.replace(/^-|\*|\d+\.\s/, '').trim();
       if (itemText) {
         items.push({
-          id: helpers.generateUniqueId(),
+          id: helpers.generateUniqueId(), // Using the imported helpers function
           text: itemText,
           category: currentCategory,
           completed: false,
           completedAt: null
         });
       }
+    } else if (line.length > 0) {
+      // If it's not empty and doesn't match other patterns, treat as an item
+      // This catches items that might not have bullet points
+      items.push({
+        id: helpers.generateUniqueId(), // Using the imported helpers function
+        text: line,
+        category: currentCategory,
+        completed: false,
+        completedAt: null
+      });
     }
   });
   
+  console.log(`Parsed ${items.length} items across categories`);
   return items;
 }
 

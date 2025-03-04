@@ -12,9 +12,12 @@ async function sendMessage(channelId, message) {
   try {
     console.log(`Sending message to Slack channel ${channelId}`);
     
+    // Ensure message is never empty (Slack requires non-empty text)
+    const safeMessage = message || "ㅤ"; // Use invisible character if empty
+    
     const response = await axios.post('https://slack.com/api/chat.postMessage', {
       channel: channelId,
-      text: message
+      text: safeMessage
     }, {
       headers: {
         'Authorization': `Bearer ${config.slack.botToken}`,
@@ -45,9 +48,26 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
   try {
     console.log(`Sending blocks to Slack channel ${channelId}`);
     
+    // Ensure fallbackText is never empty (Slack requires non-empty text)
+    const safeFallbackText = fallbackText || "Message with blocks";
+    
+    // Ensure blocks is a valid array
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      console.warn('No blocks provided, falling back to regular message');
+      return await sendMessage(channelId, safeFallbackText);
+    }
+    
+    // Log detailed information about the request
+    console.log('Block count:', blocks.length);
+    console.log('Request data:', JSON.stringify({
+      channel: channelId,
+      text: safeFallbackText,
+      blocks: blocks
+    }, null, 2).substring(0, 500) + '...');
+    
     const response = await axios.post('https://slack.com/api/chat.postMessage', {
       channel: channelId,
-      text: fallbackText,
+      text: safeFallbackText,
       blocks: blocks
     }, {
       headers: {
@@ -56,17 +76,35 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
       }
     });
     
+    // Log response data
+    console.log('Slack API response:', response.data);
+    
     if (!response.data.ok) {
       console.error('Slack API error:', response.data.error);
+      if (response.data.error === 'invalid_blocks') {
+        console.error('Block validation failed. Dumping full block data:');
+        console.error(JSON.stringify(blocks, null, 2));
+      }
       throw new Error(`Slack API error: ${response.data.error}`);
     }
     
     return response.data;
   } catch (error) {
     console.error('Error sending Slack blocks:', error.message);
+    
+    // Log the detailed error information
+    if (error.response) {
+      console.error('Slack response error:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    }
+    
     throw error;
   }
 }
+
 
 /**
  * Get user information from Slack
