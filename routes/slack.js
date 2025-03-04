@@ -7,18 +7,19 @@ const commandsHandler = require('../handlers/commands');
 const eventsHandler = require('../handlers/events');
 const interactionsHandler = require('../handlers/interactions');
 
-// Make sure we're importing the functions properly
-console.log('Commands handler:', typeof commandsHandler.handleSlackCommand);
+// Log that router is loading
+console.log('Loading Slack routes...');
+console.log('Commands handler:', typeof commandsHandler.handleCommands);
 console.log('Events handler:', typeof eventsHandler.handleEvents);
 console.log('Interactions handler:', typeof interactionsHandler.handleInteractions);
 
-// Ensure we're using existing functions
-router.post('/commands', commandsHandler.handleSlackCommand);
+// Route slash commands to the handler
+router.post('/commands', commandsHandler.handleCommands);
+
+// Route events and interactions
 router.post('/events', eventsHandler.handleEvents);
 router.post('/interactions', interactionsHandler.handleInteractions);
 
-module.exports = router;
+console.log('Slack routes loaded successfully');
 
-console.log('Commands handler object:', commandsHandler);
-console.log('Events handler object:', eventsHandler);
-console.log('Interactions handler object:', interactionsHandler);
+module.exports = router;

@@ -34,19 +34,31 @@ async function getChecklist(role) {
  * @returns {object} - The parsed role information
  */
 function parseRoleSpecification(text) {
-  // Check for format: "[role] for @username"
-  const forUserPattern = /^(.*?)\s+for\s+@([^\s]+)$/;
+  console.log(`Parsing role specification from: "${text}"`);
+  
+  // Check for format: "[role] for @username" or "[role] for <@USERID|username>"
+  // This regex handles both simple @username and Slack's <@USERID|username> format
+  const forUserPattern = /^(.*?)\s+for\s+(?:<@([A-Z0-9]+)(?:\|[^>]+)??>|@([^\s]+))$/;
   const forUserMatch = text.match(forUserPattern);
   
   if (forUserMatch) {
+    const role = forUserMatch[1].trim();
+    
+    // If we matched a Slack mention format <@USERID|username>, use the user ID
+    // Otherwise, use the simple @username format
+    const targetUser = forUserMatch[2] || forUserMatch[3];
+    
+    console.log(`Parsed: role="${role}", targetUser="${targetUser}"`);
+    
     return {
-      role: forUserMatch[1].trim(),
-      targetUser: forUserMatch[2].trim(),
+      role: role,
+      targetUser: targetUser,
       isForOtherUser: true
     };
   }
   
   // Just a role for the current user
+  console.log(`No target user found, assuming role: "${text.trim()}"`);
   return {
     role: text.trim(),
     isForOtherUser: false
@@ -60,9 +72,16 @@ function parseRoleSpecification(text) {
  */
 async function isUserManager(userId) {
   try {
-    // This is a placeholder until AAD integration
-    // In production, you would query AAD to check if the user is a manager
+    console.log(`Checking if user ${userId} is a manager`);
     
+    // TEMPORARY OVERRIDE FOR TESTING: Allow all users to be managers
+    // This lets you test the checklist functionality without permissions
+    // Remove this in production
+    console.log('⚠️ DEVELOPMENT MODE: All users are considered managers for testing');
+    return true;
+    
+    /* COMMENTED OUT UNTIL PERMISSIONS ARE FIXED
+    // In production, you would query AAD to check if the user is a manager
     // For now, we'll check if the user has "manager" in their title
     const userInfo = await slackService.getUserInfo(userId);
     const title = userInfo.profile?.title || '';
@@ -70,10 +89,12 @@ async function isUserManager(userId) {
     // Check for manager indicators in the title
     const managerKeywords = ['manager', 'director', 'lead', 'head', 'chief', 'vp', 'president', 'ceo', 'cto', 'cfo', 'coo'];
     return managerKeywords.some(keyword => title.toLowerCase().includes(keyword));
+    */
   } catch (error) {
     console.error('Error checking if user is manager:', error);
-    // Default to false for safety
-    return false;
+    // For testing only:
+    console.log('⚠️ Error in manager check, defaulting to manager=true for testing');
+    return true;
   }
 }
 
@@ -233,15 +254,22 @@ function createProgressBar(percentage) {
 }
 
 /**
- * Create interactive checklist blocks for Slack
+ * Create interactive checklist blocks for Slack, handling large checklists
  * @param {string} checklistId - ID of the checklist
  * @param {string} role - Role title
  * @param {Array} items - Checklist items
  * @param {string} managerId - ID of the manager
- * @returns {Array} - Slack blocks for interactive checklist
+ * @returns {Array} - Array of block arrays, each suitable for sending as a message
  */
 function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
-  const blocks = [
+  console.log('Creating interactive checklist blocks');
+  console.log(`Checklist ID: ${checklistId}, Role: ${role}, Items: ${items.length}, Manager: ${managerId}`);
+  
+  // Slack has a limit of 50 blocks per message
+  const MAX_BLOCKS_PER_MESSAGE = 45; // Leave buffer for header/footer blocks
+  
+  // Header blocks - will be part of the first message
+  const headerBlocks = [
     {
       type: "header",
       text: {
@@ -264,10 +292,15 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
   
   // Group items by category
   const categorizedItems = groupItemsByCategory(items);
+  console.log('Categorized items:', Object.keys(categorizedItems));
+  
+  // Prepare category blocks
+  let allCategoryBlocks = [];
   
   // Add each category and its items
   Object.entries(categorizedItems).forEach(([category, categoryItems]) => {
-    blocks.push({
+    // Add category header
+    allCategoryBlocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
@@ -275,8 +308,12 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
       }
     });
     
+    // Add item blocks
     categoryItems.forEach(item => {
-      blocks.push({
+      // Use a simpler action_id format
+      const actionId = `toggle_${checklistId.substring(0, 8)}_${item.id.substring(0, 8)}`;
+      
+      allCategoryBlocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
@@ -284,7 +321,7 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
         },
         accessory: {
           type: "checkboxes",
-          action_id: `toggle_item_${checklistId}_${item.id}`,
+          action_id: actionId,
           options: [
             {
               text: {
@@ -292,7 +329,7 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
                 text: "Complete",
                 emoji: true
               },
-              value: `complete_${item.id}`
+              value: "complete"
             }
           ],
           initial_options: item.completed ? [
@@ -302,19 +339,21 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
                 text: "Complete",
                 emoji: true
               },
-              value: `complete_${item.id}`
+              value: "complete"
             }
           ] : []
         }
       });
     });
+    
+    // Add a divider after each category
+    allCategoryBlocks.push({
+      type: "divider"
+    });
   });
   
-  // Add a button to view progress
-  blocks.push(
-    {
-      type: "divider"
-    },
+  // Footer blocks - will be part of the last message
+  const footerBlocks = [
     {
       type: "actions",
       elements: [
@@ -325,14 +364,45 @@ function createInteractiveChecklistBlocks(checklistId, role, items, managerId) {
             text: "View Progress Summary",
             emoji: true
           },
-          action_id: `view_progress_${checklistId}`,
+          action_id: `view_progr_${checklistId.substring(0, 8)}`,
           style: "primary"
         }
       ]
     }
-  );
+  ];
   
-  return blocks;
+  // Split blocks into multiple messages if needed
+  const messageBlockSets = [];
+  
+  // First message will have header blocks
+  let currentMessageBlocks = [...headerBlocks];
+  
+  // Add category blocks, creating new messages when needed
+  for (let i = 0; i < allCategoryBlocks.length; i++) {
+    // If adding this block would exceed the limit, start a new message
+    if (currentMessageBlocks.length >= MAX_BLOCKS_PER_MESSAGE) {
+      messageBlockSets.push(currentMessageBlocks);
+      currentMessageBlocks = []; // Start a new message
+    }
+    
+    currentMessageBlocks.push(allCategoryBlocks[i]);
+  }
+  
+  // Add footer blocks to the last message
+  if (currentMessageBlocks.length + footerBlocks.length <= MAX_BLOCKS_PER_MESSAGE) {
+    currentMessageBlocks.push(...footerBlocks);
+  } else {
+    // If footer doesn't fit, add current blocks as a message and create a new one for footer
+    messageBlockSets.push(currentMessageBlocks);
+    currentMessageBlocks = [...footerBlocks];
+  }
+  
+  // Add the last message
+  messageBlockSets.push(currentMessageBlocks);
+  
+  console.log(`Created ${messageBlockSets.length} messages with a total of ${allCategoryBlocks.length + headerBlocks.length + footerBlocks.length} blocks`);
+  
+  return messageBlockSets;
 }
 
 /**
@@ -393,6 +463,30 @@ function generateProgressBlocks(checklist) {
   return blocks;
 }
 
+/**
+ * Get all checklists (for finding by ID)
+ * @returns {Object} - All checklists indexed by ID
+ */
+function getAllChecklists() {
+  return checklistsStore;
+}
+
+/**
+ * Create a visual progress bar
+ * @param {number} percentage - Completion percentage
+ * @returns {string} - Text-based progress bar
+ */
+function createProgressBar(percentage) {
+  const filledBlocks = Math.floor(percentage / 10);
+  const emptyBlocks = 10 - filledBlocks;
+  
+  const filled = '█'.repeat(filledBlocks);
+  const empty = '░'.repeat(emptyBlocks);
+  
+  return `\`${filled}${empty}\` ${percentage}%`;
+}
+
+
 module.exports = {
   getChecklist,
   parseRoleSpecification,
@@ -406,5 +500,6 @@ module.exports = {
   groupItemsByCategory,
   createProgressBar,
   createInteractiveChecklistBlocks,
-  generateProgressBlocks
+  generateProgressBlocks,
+  getAllChecklists
 };

@@ -75,22 +75,72 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
  */
 async function getUserInfo(userId) {
   try {
-    // Determine if we're working with a user ID or username
-    const method = userId.startsWith('U') ? 'users.info' : 'users.lookupByEmail';
-    const param = userId.startsWith('U') ? { user: userId } : { email: `${userId}@yourcompany.com` };
+    console.log(`Getting user info for: ${userId}`);
     
-    const response = await axios.get(`https://slack.com/api/${method}`, {
-      params: param,
-      headers: { Authorization: `Bearer ${config.slack.botToken}` }
-    });
-    
-    if (!response.data.ok) {
-      throw new Error(`Slack API error: ${response.data.error}`);
+    // First, handle Slack mention format <@USERID|username>
+    const mentionMatch = String(userId).match(/<@([A-Z0-9]+)(?:\|[^>]+)?>/);
+    if (mentionMatch) {
+      userId = mentionMatch[1]; // Extract the ID part
+      console.log(`Extracted user ID from mention format: ${userId}`);
     }
     
-    return response.data.user;
+    // Also handle @username format by removing the @ prefix
+    if (String(userId).startsWith('@')) {
+      userId = userId.substring(1);
+      console.log(`Removed @ prefix: ${userId}`);
+    }
+    
+    // If it looks like a user ID (starts with U), use direct lookup
+    if (String(userId).startsWith('U')) {
+      console.log(`Looking up user by ID: ${userId}`);
+      const response = await axios.get('https://slack.com/api/users.info', {
+        params: { user: userId },
+        headers: { Authorization: `Bearer ${config.slack.botToken}` }
+      });
+      
+      if (!response.data.ok) {
+        console.error(`Error looking up user by ID: ${response.data.error}`);
+        throw new Error(`Slack API error: ${response.data.error}`);
+      }
+      
+      return response.data.user;
+    } 
+    // Otherwise, try to find the user by listing all users
+    else {
+      console.log(`Looking up user by name: ${userId}`);
+      
+      try {
+        // Get all users in the workspace
+        const response = await axios.get('https://slack.com/api/users.list', {
+          headers: { Authorization: `Bearer ${config.slack.botToken}` }
+        });
+        
+        if (!response.data.ok) {
+          console.error(`Error listing users: ${response.data.error}`);
+          throw new Error(`Slack API error: ${response.data.error}`);
+        }
+        
+        // Search for the user by name
+        const user = response.data.members.find(member => 
+          member.name.toLowerCase() === userId.toLowerCase() || 
+          (member.profile && member.profile.display_name && 
+           member.profile.display_name.toLowerCase() === userId.toLowerCase())
+        );
+        
+        if (user) {
+          console.log(`Found user by name lookup: ${user.id}`);
+          return user;
+        } else {
+          console.error(`User not found in member list: ${userId}`);
+          throw new Error(`User not found: ${userId}`);
+        }
+      } catch (error) {
+        console.error(`Error in user list lookup: ${error.message}`);
+        throw error;
+      }
+    }
   } catch (error) {
-    console.error('Error getting user info:', error.message);
+    console.error(`getUserInfo error: ${error.message}`);
     throw error;
   }
 }
@@ -102,6 +152,8 @@ async function getUserInfo(userId) {
  */
 async function openDirectMessageChannel(userId) {
   try {
+    console.log(`Opening DM channel with user: ${userId}`);
+    
     const response = await axios.post('https://slack.com/api/conversations.open', {
       users: userId
     }, {
@@ -112,9 +164,11 @@ async function openDirectMessageChannel(userId) {
     });
     
     if (!response.data.ok) {
+      console.error(`Error opening DM channel: ${response.data.error}`);
       throw new Error(`Slack API error: ${response.data.error}`);
     }
     
+    console.log(`Successfully opened DM channel: ${response.data.channel.id}`);
     return response.data.channel.id;
   } catch (error) {
     console.error('Error opening DM channel:', error.message);

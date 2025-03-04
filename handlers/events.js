@@ -14,15 +14,29 @@ const handleEvents = (req, res) => {
     return res.status(200).json({ challenge: req.body.challenge });
   }
   
-  // Handle other events
-  const body = req.body;
-  
   // Respond to Slack immediately to meet the 3-second requirement
   res.status(200).send();
+  
+  // Handle other events
+  const body = req.body;
   
   // Process the event asynchronously
   if (body.event) {
     console.log('Processing Slack event:', body.event.type);
+    
+    // IMPORTANT: Check if this event is from a slash command
+    // If the event text starts with a slash, it's likely a duplicate of a command
+    // and we should ignore it to prevent double-processing
+    if (body.event.text && body.event.text.trim().startsWith('/')) {
+      console.log('Ignoring event that appears to be a slash command:', body.event.text);
+      return;
+    }
+    
+    // Also ignore events with subtype (like message_changed, etc.)
+    if (body.event.subtype) {
+      console.log('Ignoring event with subtype:', body.event.subtype);
+      return;
+    }
     
     // Handle different event types
     switch (body.event.type) {
@@ -68,9 +82,15 @@ async function handleAppMention(event) {
       return;
     }
     
+    // Send a "thinking" message
+    await slackService.sendMessage(
+      channel,
+      `I'm looking into that for you, <@${user}>. Just a moment...`
+    );
+    
     // Process the mention as a question
     const langflowService = require('../services/langflow');
-    const response = await langflowService.getLangflowResponse(cleanText);
+    const response = await langflowService.queryLangflow(cleanText);
     
     await slackService.sendMessage(channel, response);
   } catch (error) {
@@ -100,9 +120,25 @@ async function handleDirectMessage(event) {
     
     const { text, channel, user } = event;
     
+    // Check if the message looks like a slash command
+    if (text.startsWith('/')) {
+      console.log('Ignoring DM that looks like a slash command:', text);
+      await slackService.sendMessage(
+        channel,
+        `It looks like you're trying to use a slash command. Please use slash commands in the message input, not in a DM. For example, type "/askbuddy" followed by your question.`
+      );
+      return;
+    }
+    
+    // Send a "thinking" message
+    await slackService.sendMessage(
+      channel,
+      `I'm working on your question, <@${user}>. This might take a moment...`
+    );
+    
     // Process the DM as a question
     const langflowService = require('../services/langflow');
-    const response = await langflowService.getLangflowResponse(text);
+    const response = await langflowService.queryLangflow(text);
     
     await slackService.sendMessage(channel, response);
   } catch (error) {

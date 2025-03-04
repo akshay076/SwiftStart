@@ -9,6 +9,8 @@ const config = require('../config');
  */
 async function queryLangflow(message) {
   try {
+    console.log(`Starting Langflow query with message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
+    
     const { flowId, apiToken, fullEndpoint } = config.langflow;
 
     if (!flowId || !apiToken) {
@@ -16,7 +18,9 @@ async function queryLangflow(message) {
     }
 
     const url = `${fullEndpoint}${flowId}?stream=false`;
-
+    
+    console.log(`Making request to Langflow API: ${url}`);
+    
     const response = await axios.post(url, 
       {
         input_value: message,
@@ -32,9 +36,12 @@ async function queryLangflow(message) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiToken}`
-        }
+        },
+        timeout: 25000 // 25 second timeout to prevent hanging indefinitely
       }
     );
+
+    console.log('Langflow response received successfully');
 
     // Extract the nested message using multiple possible paths
     const extractionPaths = [
@@ -46,35 +53,56 @@ async function queryLangflow(message) {
 
     let extractedMessage = null;
     for (const path of extractionPaths) {
-      extractedMessage = path();
-      if (extractedMessage) {
-        break;
+      try {
+        extractedMessage = path();
+        if (extractedMessage) {
+          console.log(`Successfully extracted message using path ${extractionPaths.indexOf(path)}`);
+          break;
+        }
+      } catch (err) {
+        // Path failed, try the next one
       }
     }
 
     // Fallback if no message is found
     if (!extractedMessage) {
       console.error('Could not extract message from response');
-      console.error('Response data:', JSON.stringify(response.data, null, 2));
-      extractedMessage = "I couldn't generate a response.";
+      console.error('Response structure:', JSON.stringify(Object.keys(response.data), null, 2));
+      console.error('Full response data:', JSON.stringify(response.data, null, 2));
+      extractedMessage = "I couldn't generate a response. There was an issue with the AI service. Please try again in a moment.";
     }
 
+    console.log(`Extracted message (first 100 chars): "${extractedMessage.substring(0, 100)}${extractedMessage.length > 100 ? '...' : ''}"`);
     return extractedMessage;
   } catch (error) {
     console.error('Detailed Langflow Error:');
     
+    if (error.code === 'ECONNABORTED') {
+      console.error('Langflow request timed out');
+      return "I'm sorry, but my AI service is taking too long to respond right now. Please try again in a few minutes.";
+    }
+    
     if (error.response) {
       console.error('Status:', error.response.status);
-      console.error('Headers:', error.response.headers);
+      console.error('Headers:', JSON.stringify(error.response.headers));
       console.error('Data:', JSON.stringify(error.response.data, null, 2));
     } else if (error.request) {
-      console.error('No response received');
+      console.error('No response received:', error.request);
     } else {
       console.error('Error:', error.message);
     }
     
-    throw error;
+    return "I'm having trouble connecting to my knowledge base right now. Please try again in a few minutes.";
   }
+}
+
+/**
+ * Legacy method for compatibility - forwards to queryLangflow
+ * @param {string} text - The message to send
+ * @returns {Promise<string>} - The response
+ */
+async function getLangflowResponse(text) {
+  return await queryLangflow(text);
 }
 
 /**
@@ -88,8 +116,7 @@ async function testLangflowConnection() {
     
     const response = await queryLangflow(testMessage);
     
-    console.log('Extracted Test Response:');
-    console.log(response);
+    console.log('Test Langflow Response:', response);
     
     return response;
   } catch (error) {
@@ -100,5 +127,6 @@ async function testLangflowConnection() {
 
 module.exports = {
   queryLangflow,
+  getLangflowResponse,
   testLangflowConnection
 };

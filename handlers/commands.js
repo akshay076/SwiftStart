@@ -4,19 +4,87 @@ const slackService = require('../services/slack');
 const checklistController = require('../controllers/checklist');
 
 /**
+ * Express route handler for Slack commands
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+function handleCommands(req, res) {
+  try {
+    const payload = req.body;
+    const { command, text, user_id, channel_id } = payload;
+    
+    console.log(`Received command: ${command} with text: ${text}`);
+    
+    // Send immediate acknowledgment to Slack WITH A VISIBLE MESSAGE
+    if (command === '/askbuddy') {
+      res.status(200).send({
+        response_type: 'in_channel',
+        text: `I'm looking up the answer to your question, <@${user_id}>. This might take a moment...`
+      });
+      
+      // Process the command asynchronously
+      handleAskBuddyCommand(payload);
+    } 
+    else if (command === '/create-checklist') {
+      res.status(200).send({
+        response_type: 'in_channel',
+        text: 'Creating your checklist...'
+      });
+      
+      // Process the command asynchronously
+      handleCreateChecklistCommand(payload);
+    }
+    else if (command === '/check-progress') {
+      res.status(200).send({
+        response_type: 'in_channel',
+        text: 'Checking progress...'
+      });
+      
+      // Process the command asynchronously
+      handleCheckProgressCommand(payload);
+    }
+    else {
+      // Unknown command - respond immediately
+      res.status(200).send({
+        text: "I don't recognize that command. Try /askbuddy, /create-checklist, or /check-progress."
+      });
+    }
+  } catch (error) {
+    console.error('Error in handleCommands:', error);
+    
+    // If we get an error, still send a response to Slack
+    res.status(200).send({
+      text: "Sorry, I encountered an error processing your command."
+    });
+  }
+}
+
+/**
  * Handle the /askbuddy command
  * @param {object} payload - The Slack command payload
  * @returns {Promise<void>}
  */
 async function handleAskBuddyCommand(payload) {
-  const { text, channel_id } = payload;
+  const { text, channel_id, user_id } = payload;
   
   try {
-    // Get answer from Langflow
-    const answer = await langflowService.queryLangflow(text);
+    console.log(`Processing askbuddy command with text: "${text}"`);
+    
+    // Get answer from Langflow with timeout and error handling
+    let answer;
+    try {
+      console.log("Querying Langflow...");
+      answer = await langflowService.queryLangflow(text);
+      console.log("Received response from Langflow");
+    } catch (error) {
+      console.error("Error querying Langflow:", error);
+      answer = "I'm sorry, but I couldn't get a response in time. The AI service might be experiencing high load. Please try again in a few minutes.";
+    }
     
     // Send the response back to Slack
+    console.log("Sending final answer to Slack");
     await slackService.sendMessage(channel_id, answer);
+    console.log("Final answer sent to Slack");
   } catch (error) {
     console.error('Error processing askbuddy command:', error);
     await slackService.sendMessage(channel_id, "Sorry, I encountered an error processing your request.");
@@ -67,23 +135,102 @@ async function handleCreateChecklistCommand(payload) {
         // Open a DM channel with the target user
         const dmChannelId = await slackService.openDirectMessageChannel(targetUserId);
         
-        // Create interactive checklist blocks
-        const checklistBlocks = checklistController.createInteractiveChecklistBlocks(
-          checklistId,
-          role,
-          checklistItems,
-          user_id // manager ID
+        // Send introduction message
+        await slackService.sendMessage(
+          dmChannelId,
+          `*Onboarding Checklist: ${role}*\n\nHi <@${targetUserId}>, your manager <@${user_id}> has created this interactive onboarding checklist for you. Check off items as you complete them!`
         );
         
-        // Send the interactive checklist to the target user's DM
+        // Group items by category
+        const categorizedItems = checklistController.groupItemsByCategory(checklistItems);
+        
+        // Process each category separately to avoid block limits
+        for (const [category, items] of Object.entries(categorizedItems)) {
+          // Send category header
+          await slackService.sendMessage(
+            dmChannelId,
+            `*${category}*`
+          );
+          
+          // Process items in batches of 5 to stay well within block limits
+          const batchSize = 5;
+          for (let i = 0; i < items.length; i += batchSize) {
+            const batchItems = items.slice(i, i + batchSize);
+            const blocks = [];
+            
+            // Add each item as a section with checkbox
+            batchItems.forEach(item => {
+              blocks.push({
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: item.text
+                },
+                accessory: {
+                  type: "checkboxes",
+                  action_id: `toggle_${checklistId.substring(0, 5)}_${item.id.substring(0, 5)}`,
+                  options: [
+                    {
+                      text: {
+                        type: "plain_text",
+                        text: "Complete",
+                        emoji: true
+                      },
+                      value: "complete"
+                    }
+                  ],
+                  initial_options: item.completed ? [
+                    {
+                      text: {
+                        type: "plain_text",
+                        text: "Complete",
+                        emoji: true
+                      },
+                      value: "complete"
+                    }
+                  ] : []
+                }
+              });
+            });
+            
+            // Send this batch of items
+            await slackService.sendMessageWithBlocks(dmChannelId, "", blocks);
+            
+            // Add a small delay between messages to ensure proper ordering
+            if (i + batchSize < items.length) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          }
+        }
+        
+        // Add view progress button at the end
+        const progressBlock = [
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "View Progress Summary",
+                  emoji: true
+                },
+                action_id: `view_prog_${checklistId.substring(0, 7)}`,
+                style: "primary"
+              }
+            ]
+          }
+        ];
+        
         await slackService.sendMessageWithBlocks(dmChannelId, 
-          `Your onboarding checklist for ${role} role:`,
-          checklistBlocks
+          "Track your progress with the button below:",
+          progressBlock
         );
         
         // Notify the manager that the checklist was sent
         await slackService.sendMessage(channel_id, 
-          `✅ Onboarding checklist for ${role} has been sent to <@${targetUserId}>`
+          `✅ Onboarding checklist for ${role} has been sent to <@${targetUserId}>\n` +
+          `You can check their progress anytime with \`/check-progress @${targetUserInfo.name}\``
         );
         
       } catch (error) {
@@ -125,7 +272,7 @@ async function handleCheckProgressCommand(payload) {
     }
     
     // Parse the username from the command
-    const targetUsername = text.trim().replace('@', '');
+    const targetUsername = text.trim().replace(/^@/, '');
     
     if (!targetUsername) {
       return await slackService.sendMessage(channel_id, 
@@ -174,7 +321,7 @@ async function handleCheckProgressCommand(payload) {
                 emoji: true
               },
               value: list.id,
-              action_id: `view_employee_progress_${list.id}`
+              action_id: `view_emp_${list.id.substring(0, 7)}`
             }
           });
         });
@@ -187,34 +334,7 @@ async function handleCheckProgressCommand(payload) {
       
       // If only one checklist, show progress immediately
       const checklist = checklists[0];
-      const progressStats = checklistController.calculateChecklistProgress(checklist);
-      
-      const blocks = [
-        {
-          type: "header",
-          text: {
-            type: "plain_text",
-            text: `Onboarding Progress: ${checklist.role}`,
-            emoji: true
-          }
-        },
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `Progress for <@${targetUserId}>: *${progressStats.completedPercentage}%* complete (${progressStats.completedCount}/${progressStats.totalCount} tasks)`
-          }
-        },
-        {
-          type: "divider"
-        },
-        ...checklistController.generateProgressBlocks(checklist)
-      ];
-      
-      await slackService.sendMessageWithBlocks(channel_id, 
-        `Onboarding progress for ${targetUserInfo.real_name}`,
-        blocks
-      );
+      await showChecklistProgress(checklist, channel_id);
       
     } catch (error) {
       console.error('Error finding user:', error);
@@ -231,67 +351,107 @@ async function handleCheckProgressCommand(payload) {
 }
 
 /**
- * Route and handle Slack slash commands
- * @param {object} payload - The Slack command payload
- * @param {object} res - Express response object for immediate acknowledgment
+ * Show the progress for a checklist
+ * @param {object} checklist - The checklist object
+ * @param {string} channelId - The channel to send the progress to
  */
-function handleSlackCommand(payload, res) {
-  const { command } = payload;
-  
-  console.log(`Received command: ${command} with text: ${payload.text}`);
-  
-  // Send immediate acknowledgment
-  res.status(200).send();
-  
-  // Process commands asynchronously
-  if (command === '/askbuddy') {
-    handleAskBuddyCommand(payload);
-  } 
-  else if (command === '/create-checklist') {
-    handleCreateChecklistCommand(payload);
-  }
-  else if (command === '/check-progress') {
-    handleCheckProgressCommand(payload);
-  }
-  else {
-    // Unknown command - this shouldn't happen if routes are configured correctly
-    // FIXED: Don't try to send a second response, use the Slack API instead
-    try {
-      if (payload && payload.channel_id) {
-        slackService.sendMessage(
-          payload.channel_id,
-          "I don't recognize that command. Try /askbuddy, /create-checklist, or /check-progress."
-        );
+async function showChecklistProgress(checklist, channelId) {
+  try {
+    const progressStats = checklistController.calculateChecklistProgress(checklist);
+    
+    // Create header blocks
+    const headerBlocks = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: `Onboarding Progress: ${checklist.role}`,
+          emoji: true
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `Progress for <@${checklist.employeeId}>: *${progressStats.completedPercentage}%* complete (${progressStats.completedCount}/${progressStats.totalCount} tasks)`
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: checklistController.createProgressBar(progressStats.completedPercentage)
+        }
+      },
+      {
+        type: "divider"
       }
-    } catch (error) {
-      console.error('Error sending command error message:', error);
+    ];
+    
+    // Send the header
+    await slackService.sendMessageWithBlocks(channelId, 
+      `Onboarding progress for ${checklist.role}`,
+      headerBlocks
+    );
+    
+    // Group items by category
+    const categorizedItems = checklistController.groupItemsByCategory(checklist.items);
+    
+    // Process each category separately
+    for (const [category, items] of Object.entries(categorizedItems)) {
+      // Calculate category progress
+      const totalInCategory = items.length;
+      const completedInCategory = items.filter(item => item.completed).length;
+      const categoryPercentage = Math.round((completedInCategory / totalInCategory) * 100);
+      
+      // Create category blocks
+      const categoryBlocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${category}* (${completedInCategory}/${totalInCategory} complete - ${categoryPercentage}%)`
+          }
+        }
+      ];
+      
+      // Add all items in this category
+      const itemTexts = items.map(item => {
+        const status = item.completed ? "✅" : "⬜";
+        const completedInfo = item.completed && item.completedAt 
+          ? ` (completed: ${new Date(item.completedAt).toLocaleDateString()})` 
+          : '';
+        return `${status} ${item.text}${completedInfo}`;
+      });
+      
+      // Add item list block
+      categoryBlocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: itemTexts.join("\n")
+        }
+      });
+      
+      // Add divider
+      categoryBlocks.push({
+        type: "divider"
+      });
+      
+      // Send this category
+      await slackService.sendMessageWithBlocks(channelId, "", categoryBlocks);
     }
+  } catch (error) {
+    console.error('Error showing checklist progress:', error);
+    await slackService.sendMessage(channelId, 
+      "Sorry, I encountered an error showing progress information."
+    );
   }
 }
 
-/**
- * Express route handler for Slack commands
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const handleCommands = (req, res) => {
-  try {
-    // This function will be used by Express router
-    handleSlackCommand(req.body, res);
-  } catch (error) {
-    console.error('Error in handleCommands:', error);
-    
-    // Only send a response if one hasn't been sent yet
-    if (!res.headersSent) {
-      res.status(200).send();
-    }
-  }
-};
-
 module.exports = {
-  handleSlackCommand,
   handleAskBuddyCommand,
   handleCreateChecklistCommand,
   handleCheckProgressCommand,
-  handleCommands  // Add this export for the router
+  handleCommands
 };
