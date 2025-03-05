@@ -507,10 +507,8 @@ function createProgressBar(percentage) {
   return `\`${filled}${empty}\` ${percentage}%`;
 }
 
-// controllers/checklist.js - Updated createCategoryBlocks function
-
 /**
- * Create checklist blocks with proper UI colors and reliable item lookup
+ * Create checklist blocks with standardized button structure
  * @param {string} category - Category name
  * @param {Array} items - Items in the category
  * @param {string} checklistId - ID of the checklist
@@ -528,21 +526,19 @@ function createCategoryBlocks(category, items, checklistId) {
     }
   });
   
-  // Add instructions for clarity
+  // Add instructions
   blocks.push({
     type: "context",
     elements: [
       {
         type: "mrkdwn",
-        text: "Click the buttons to mark items as complete or incomplete:"
+        text: "Click the buttons to mark items as complete:"
       }
     ]
   });
   
-  // Add each item with a button using a consistent action_id pattern
+  // Add each item with a standardized button format
   for (const item of items) {
-    // IMPORTANT: Use a standardized action_id format and store the full item ID in value
-    // This ensures we can reliably find the item when processing interactions
     blocks.push({
       type: "actions",
       elements: [
@@ -550,12 +546,12 @@ function createCategoryBlocks(category, items, checklistId) {
           type: "button",
           text: {
             type: "plain_text",
-            text: item.completed ? "✅" : "⬜", // Checkmark if completed, empty box if not
+            text: item.completed ? "✅" : "⬜", 
             emoji: true
           },
-          style: item.completed ? "primary" : "danger", // Green if completed, red if not
-          value: item.id, // Store FULL item ID for reliable lookup
-          action_id: `toggle_item_${item.id}` // Consistent format with full item ID
+          style: item.completed ? "primary" : "danger",
+          value: item.id, // Store full item ID
+          action_id: `toggle_item_${item.id}` // Standardized action_id format
         },
         {
           type: "button",
@@ -564,7 +560,8 @@ function createCategoryBlocks(category, items, checklistId) {
             text: item.text.substring(0, 75) + (item.text.length > 75 ? "..." : ""),
             emoji: true
           },
-          action_id: `item_text_${item.id}`
+          value: item.id,
+          action_id: `view_item_${item.id}`
         }
       ]
     });

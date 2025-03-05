@@ -289,6 +289,53 @@ async function handleBlockActions(payload) {
   }
 }
 
+// Add to services/slack.js
+
+/**
+ * Update an existing Slack message with new blocks
+ * @param {string} channelId - Channel ID
+ * @param {string} messageTs - Message timestamp
+ * @param {string} text - New text
+ * @param {Array} blocks - New blocks
+ * @returns {Promise<object>} - Slack API response
+ */
+async function updateMessage(channelId, messageTs, text, blocks) {
+  try {
+    console.log(`Updating message in channel ${channelId}, ts ${messageTs}`);
+    
+    // Ensure text is never empty (Slack requires non-empty text)
+    const safeText = text || "Updated message";
+    
+    const requestData = {
+      channel: channelId,
+      ts: messageTs,
+      text: safeText
+    };
+    
+    // Only add blocks if provided
+    if (blocks && blocks.length > 0) {
+      requestData.blocks = blocks;
+    }
+    
+    const response = await axios.post('https://slack.com/api/chat.update', requestData, {
+      headers: {
+        'Authorization': `Bearer ${config.slack.botToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.data.ok) {
+      console.error('Error updating Slack message:', response.data.error);
+      throw new Error(`Slack API error: ${response.data.error}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error updating Slack message:', error);
+    throw error;
+  }
+}
+
 /**
  * Handle checklist item toggle
  * @param {object} action - The action data
@@ -508,5 +555,6 @@ module.exports = {
   sendMessageWithBlocks,
   getUserInfo,
   openDirectMessageChannel,
-  handleInteractionPayload
+  handleInteractionPayload,
+  updateMessage
 };

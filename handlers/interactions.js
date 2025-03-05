@@ -51,7 +51,7 @@ const handleInteractions = async (req, res) => {
  */
 const handleBlockActions = async (payload) => {
   try {
-    const { actions, user, channel } = payload;
+    const { actions } = payload;
     
     if (!actions || !actions.length) {
       console.error('No actions found in payload');
@@ -61,26 +61,29 @@ const handleBlockActions = async (payload) => {
     console.log(`Processing ${actions.length} actions`);
     
     for (const action of actions) {
-      // Record detailed info about the action
-      console.log(`Action Details:`);
-      console.log(`- ID: ${action.action_id}`);
-      console.log(`- Type: ${action.type}`);
-      console.log(`- Value: ${action.value}`);
+      console.log(`Processing action: ${action.action_id}, value: ${action.value}`);
       
-      // Process the action based on its action_id prefix
+      // Clean action_id format for easier handling
       if (action.action_id.startsWith('toggle_item_')) {
         await handleItemToggle(action, payload);
-      } else if (action.action_id.startsWith('view_progress_')) {
+      } 
+      else if (action.action_id.startsWith('view_item_')) {
+        // Optional: Handle view item action if needed
+        console.log('View item action - no additional handling needed');
+      }
+      else if (action.action_id.startsWith('view_progress_')) {
         await handleViewProgress(action, payload);
-      } else {
+      }
+      else {
         console.log(`Unhandled action type: ${action.action_id}`);
       }
     }
   } catch (error) {
     console.error('Error in handleBlockActions:', error);
-    console.error(error.stack);
   }
-};
+}
+
+// Update the handleItemToggle function in handlers/interactions.js
 
 /**
  * Handle item toggle button click
@@ -91,10 +94,15 @@ async function handleItemToggle(action, payload) {
   try {
     console.log('====== TOGGLE ACTION DEBUG ======');
     console.log('Action ID:', action.action_id);
-    console.log('Action Value:', action.value); // This should contain the full item ID
+    console.log('Action Value:', action.value);
+    console.log('Message TS:', payload.message?.ts); // Need this to update the message
     
     if (!action.value) {
       console.error('Action value is missing - cannot identify item');
+      await slackService.sendMessage(
+        payload.channel.id,
+        "I couldn't process your request. Please try again."
+      );
       return;
     }
     
@@ -105,9 +113,8 @@ async function handleItemToggle(action, payload) {
     let targetChecklist = null;
     let targetItem = null;
     
-    // Look through all checklists for the item with this ID
+    // Direct lookup based on item ID in value
     for (const checklist of Object.values(checklists)) {
-      // Use the exact item ID from the action value for reliable matching
       const item = checklist.items.find(i => i.id === action.value);
       if (item) {
         targetChecklist = checklist;
@@ -120,7 +127,7 @@ async function handleItemToggle(action, payload) {
       console.error(`Could not find item with ID: ${action.value}`);
       await slackService.sendMessage(
         payload.channel.id,
-        "Sorry, I couldn't find the task you clicked on. Please try again."
+        "Sorry, I couldn't find the associated task. Please try again."
       );
       return;
     }
@@ -129,7 +136,6 @@ async function handleItemToggle(action, payload) {
     
     // Toggle the completion state
     const isCompleted = !targetItem.completed;
-    console.log(`Setting item "${targetItem.text}" to ${isCompleted ? 'completed' : 'not completed'}`);
     
     // Update the item in our data store
     const updated = checklistController.updateChecklistItemStatus(
@@ -138,29 +144,92 @@ async function handleItemToggle(action, payload) {
       isCompleted
     );
     
-    console.log(`Item update result: ${updated}`);
-    
     if (updated) {
       // Send a confirmation message
       await slackService.sendMessage(
         payload.channel.id,
         isCompleted
           ? `✅ You marked "*${targetItem.text}*" as complete`
-          : `⭕ You marked "*${targetItem.text}*" as incomplete`
+          : `⬜ You marked "*${targetItem.text}*" as incomplete`
       );
       
-      // Update the message to show the new state
-      // This would require additional code to update the original message
+      // Get all items in the same category to rebuild the block
+      const categoryItems = targetChecklist.items.filter(
+        item => item.category === targetItem.category
+      );
       
-      // Notify the manager if item was completed
-      if (isCompleted) {
-        console.log('Notifying manager of progress');
-        await notifyManagerOfProgress(targetChecklist, targetItem.id, payload.user.id);
+      // Update the original message with new state if we have the message timestamp
+      if (payload.message && payload.message.ts) {
+        try {
+          // Create updated blocks for this category
+          const updatedBlocks = checklistController.createCategoryBlocks(
+            targetItem.category, 
+            categoryItems, 
+            targetChecklist.id
+          );
+          
+          // Use the updateMessage function from slackService
+          await slackService.updateMessage(
+            payload.channel.id,
+            payload.message.ts,
+            `Updated items for ${targetItem.category}`,
+            updatedBlocks
+          );
+          
+          console.log('Successfully updated message with new button state');
+        } catch (updateError) {
+          console.error('Error updating message with new button state:', updateError);
+          console.error(updateError.stack);
+        }
+      }
+      
+      // Only notify the manager at milestone completions (25%, 50%, 75%, 100%)
+      const progress = checklistController.calculateChecklistProgress(targetChecklist);
+      
+      // Check if we've just crossed a milestone threshold by completing this item
+      const previousCompleted = progress.completedCount - (isCompleted ? 1 : 0);
+      const previousPercentage = Math.round((previousCompleted / progress.totalCount) * 100);
+      
+      // If we've just crossed a milestone (25%, 50%, 75%, 100%)
+      if (isCompleted && 
+          (previousPercentage < 25 && progress.completedPercentage >= 25 ||
+           previousPercentage < 50 && progress.completedPercentage >= 50 ||
+           previousPercentage < 75 && progress.completedPercentage >= 75 ||
+           previousPercentage < 100 && progress.completedPercentage >= 100)) {
+        
+        await notifyManagerOfMilestone(targetChecklist, progress, payload.user.id);
       }
     }
   } catch (error) {
     console.error('Error handling item toggle:', error);
     console.error(error.stack);
+    await slackService.sendMessage(
+      payload.channel.id,
+      "Sorry, I encountered an error processing your request. Please try again."
+    );
+  }
+}
+
+/**
+ * Notify a manager when an employee reaches a completion milestone
+ * @param {object} checklist - The checklist object
+ * @param {object} progress - Progress statistics
+ * @param {string} employeeId - The employee Slack ID
+ */
+async function notifyManagerOfMilestone(checklist, progress, employeeId) {
+  try {
+    const { managerId, role } = checklist;
+    
+    // Open a DM with the manager
+    const dmChannelId = await slackService.openDirectMessageChannel(managerId);
+    
+    // Send milestone notification
+    await slackService.sendMessage(dmChannelId, 
+      `🎉 <@${employeeId}> has reached *${progress.completedPercentage}%* completion of their ${role} onboarding checklist!\n` +
+      `They have completed ${progress.completedCount} out of ${progress.totalCount} tasks.`
+    );
+  } catch (error) {
+    console.error('Error notifying manager of milestone:', error);
   }
 }
 
