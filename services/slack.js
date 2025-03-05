@@ -37,6 +37,8 @@ async function sendMessage(channelId, message) {
   }
 }
 
+// services/slack.js - Improved error handling for sendMessageWithBlocks
+
 /**
  * Send a message with blocks to a Slack channel
  * @param {string} channelId - The ID of the channel to send to
@@ -59,35 +61,64 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
     
     // Log detailed information about the request
     console.log('Block count:', blocks.length);
-    console.log('Request data:', JSON.stringify({
-      channel: channelId,
-      text: safeFallbackText,
-      blocks: blocks
-    }, null, 2).substring(0, 500) + '...');
     
-    const response = await axios.post('https://slack.com/api/chat.postMessage', {
+    // Validate blocks before sending to catch obvious errors
+    for (let i = 0; i < blocks.length; i++) {
+      if (!blocks[i].type) {
+        console.error(`Block at index ${i} is missing required 'type' field:`, blocks[i]);
+        blocks[i] = {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "Error: Invalid block format"
+          }
+        };
+      }
+    }
+    
+    // Prepare the request data
+    const requestData = {
       channel: channelId,
       text: safeFallbackText,
       blocks: blocks
-    }, {
+    };
+    
+    // Log the first few blocks for debugging (to avoid overly long logs)
+    console.log('First 2 blocks:', JSON.stringify(blocks.slice(0, 2), null, 2));
+    console.log(`Total block count: ${blocks.length}`);
+    
+    const response = await axios.post('https://slack.com/api/chat.postMessage', requestData, {
       headers: {
         'Authorization': `Bearer ${config.slack.botToken}`,
         'Content-Type': 'application/json'
       }
     });
     
-    // Log response data
-    console.log('Slack API response:', response.data);
-    
+    // Check for Slack API errors
     if (!response.data.ok) {
       console.error('Slack API error:', response.data.error);
+      
       if (response.data.error === 'invalid_blocks') {
-        console.error('Block validation failed. Dumping full block data:');
+        console.error('Block validation failed. Dumping block data:');
         console.error(JSON.stringify(blocks, null, 2));
+        
+        // Try to identify which block is causing the issue
+        if (blocks.length > 1) {
+          console.log('Attempting to identify problematic block...');
+          for (let i = 0; i < blocks.length; i++) {
+            console.log(`Testing block ${i}: ${blocks[i].type}`);
+          }
+        }
+        
+        // Fall back to simple message if blocks failed
+        console.log('Falling back to simple message without blocks');
+        return await sendMessage(channelId, `${safeFallbackText} (Note: Could not display rich content due to formatting issues)`);
       }
+      
       throw new Error(`Slack API error: ${response.data.error}`);
     }
     
+    console.log('Successfully sent message with blocks');
     return response.data;
   } catch (error) {
     console.error('Error sending Slack blocks:', error.message);
@@ -101,7 +132,14 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
       });
     }
     
-    throw error;
+    // Attempt to fall back to a simple message
+    try {
+      console.log('Falling back to simple message');
+      return await sendMessage(channelId, `${fallbackText} (Note: Could not display rich content due to an error)`);
+    } catch (fallbackError) {
+      console.error('Error sending fallback message:', fallbackError);
+      throw error; // Throw the original error
+    }
   }
 }
 

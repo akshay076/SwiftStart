@@ -1,7 +1,6 @@
 // handlers/interactions.js
 const checklistController = require('../controllers/checklist');
 const slackService = require('../services/slack');
-const axios = require('axios');
 const config = require('../config');
 
 /**
@@ -18,7 +17,14 @@ const handleInteractions = async (req, res) => {
     const payload = JSON.parse(req.body.payload);
     
     console.log('Interaction received:', payload.type);
-    console.log('Action IDs:', payload.actions?.map(a => a.action_id).join(', '));
+    console.log('User ID:', payload.user?.id);
+    console.log('Channel ID:', payload.channel?.id);
+    
+    if (payload.actions && payload.actions.length > 0) {
+      console.log('Action IDs:', payload.actions.map(a => a.action_id).join(', '));
+      // IMPORTANT: Log the full action objects for debugging
+      console.log('First action details:', JSON.stringify(payload.actions[0], null, 2));
+    }
     
     switch (payload.type) {
       case 'block_actions':
@@ -35,6 +41,7 @@ const handleInteractions = async (req, res) => {
     }
   } catch (error) {
     console.error('Error handling interaction:', error);
+    console.error(error.stack);
   }
 };
 
@@ -52,24 +59,26 @@ const handleBlockActions = async (payload) => {
     }
     
     console.log(`Processing ${actions.length} actions`);
-    console.log('Action IDs:', actions.map(a => a.action_id).join(', '));
     
     for (const action of actions) {
       // Record detailed info about the action
-      console.log(`Action: ${action.action_id}`);
+      console.log(`Action Details:`);
+      console.log(`- ID: ${action.action_id}`);
       console.log(`- Type: ${action.type}`);
       console.log(`- Value: ${action.value}`);
-      console.log(`- Style: ${action.style}`);
       
-      // Handle different action types
-      if (action.action_id.startsWith('tgl_')) {
-        await handleItemToggle(action, payload, user.id, channel.id);
+      // Process the action based on its action_id prefix
+      if (action.action_id.startsWith('toggle_item_')) {
+        await handleItemToggle(action, payload);
       } else if (action.action_id.startsWith('view_progress_')) {
         await handleViewProgress(action, payload);
+      } else {
+        console.log(`Unhandled action type: ${action.action_id}`);
       }
     }
   } catch (error) {
     console.error('Error in handleBlockActions:', error);
+    console.error(error.stack);
   }
 };
 
@@ -77,63 +86,46 @@ const handleBlockActions = async (payload) => {
  * Handle item toggle button click
  * @param {object} action - The action data
  * @param {object} payload - The full payload
- * @param {string} userId - The user ID who performed the action
- * @param {string} channelId - The channel ID where the action was performed
  */
-async function handleItemToggle(action, payload, userId, channelId) {
+async function handleItemToggle(action, payload) {
   try {
-    // Very verbose logging to debug the issue
     console.log('====== TOGGLE ACTION DEBUG ======');
-    console.log('Action:', JSON.stringify(action));
-    console.log('- ActionID:', action.action_id);
-    console.log('- Value:', action.value);
+    console.log('Action ID:', action.action_id);
+    console.log('Action Value:', action.value); // This should contain the full item ID
     
-    // We'll check all available checklists and items
+    if (!action.value) {
+      console.error('Action value is missing - cannot identify item');
+      return;
+    }
+    
+    // Get all checklists
     const checklists = checklistController.getAllChecklists();
-    console.log(`Checking ${Object.keys(checklists).length} checklists`);
     
-    // Instead of trying to parse the action_id, we'll try to match against all item IDs
+    // Find the item directly using the full item ID from action.value
     let targetChecklist = null;
     let targetItem = null;
     
-    // Log all checklist IDs for debugging
-    console.log('Available checklists:');
-    for (const [id, checklist] of Object.entries(checklists)) {
-      console.log(`- ${id}: ${checklist.role} (${checklist.items.length} items)`);
-    }
-    
-    // Find the first matching item across all checklists
+    // Look through all checklists for the item with this ID
     for (const checklist of Object.values(checklists)) {
-      for (const item of checklist.items) {
-        // For debugging, log some item info
-        console.log(`Checking item ${item.id}: "${item.text.substring(0, 20)}..." (completed: ${item.completed})`);
-        
-        // Try different ways to match the item
-        if (action.action_id.includes(item.id.substring(0, 6)) || 
-            (action.value && action.value.includes(item.id.substring(0, 6)))) {
-          targetChecklist = checklist;
-          targetItem = item;
-          console.log(`FOUND MATCH: ${item.id} - "${item.text}"`);
-          break;
-        }
+      // Use the exact item ID from the action value for reliable matching
+      const item = checklist.items.find(i => i.id === action.value);
+      if (item) {
+        targetChecklist = checklist;
+        targetItem = item;
+        break;
       }
-      if (targetItem) break;
     }
     
     if (!targetChecklist || !targetItem) {
-      console.error('Could not find any matching item for this action');
-      // Instead of failing, let's try to update the UI anyway as a visual response
-      try {
-        // Send a message to acknowledge the click
-        await slackService.sendMessage(
-          channelId,
-          "I received your click, but couldn't find the associated task. Please try again or contact support."
-        );
-      } catch (msgError) {
-        console.error('Error sending acknowledgment message:', msgError);
-      }
+      console.error(`Could not find item with ID: ${action.value}`);
+      await slackService.sendMessage(
+        payload.channel.id,
+        "Sorry, I couldn't find the task you clicked on. Please try again."
+      );
       return;
     }
+    
+    console.log(`Found item: "${targetItem.text}" in checklist: ${targetChecklist.role}`);
     
     // Toggle the completion state
     const isCompleted = !targetItem.completed;
@@ -149,18 +141,21 @@ async function handleItemToggle(action, payload, userId, channelId) {
     console.log(`Item update result: ${updated}`);
     
     if (updated) {
-      // Send a confirmation message to indicate the action was processed
+      // Send a confirmation message
       await slackService.sendMessage(
-        channelId,
+        payload.channel.id,
         isCompleted
           ? `✅ You marked "*${targetItem.text}*" as complete`
           : `⭕ You marked "*${targetItem.text}*" as incomplete`
       );
       
-      // Notify the manager
+      // Update the message to show the new state
+      // This would require additional code to update the original message
+      
+      // Notify the manager if item was completed
       if (isCompleted) {
         console.log('Notifying manager of progress');
-        await notifyManagerOfProgress(targetChecklist, targetItem.id, userId);
+        await notifyManagerOfProgress(targetChecklist, targetItem.id, payload.user.id);
       }
     }
   } catch (error) {
@@ -218,26 +213,19 @@ async function handleViewProgress(action, payload) {
   try {
     console.log('Handling progress view request:', action.action_id);
     
-    // Extract checklist ID from action_id
-    let checklistIdPart = null;
-    
-    if (action.action_id.startsWith('vp_')) {
-      checklistIdPart = action.action_id.substring(3);
-    } else if (action.action_id.startsWith('view_prog_')) {
-      checklistIdPart = action.action_id.substring(10);
-    } else if (action.action_id.startsWith('view_progress_')) {
-      checklistIdPart = action.action_id.substring(14);
-    }
+    // Extract checklist ID from action_id - standardize the format
+    const checklistIdPart = action.action_id.replace('view_progress_', '');
     
     if (!checklistIdPart) {
-      console.error('Could not parse action_id for progress view:', action.action_id);
+      console.error('Could not parse action_id for progress view');
       return;
     }
     
-    // Find the checklist by ID prefix
+    // Find the checklist
     const checklists = checklistController.getAllChecklists();
     let targetChecklist = null;
     
+    // Try to find by ID prefix
     for (const checklist of Object.values(checklists)) {
       if (checklist.id.startsWith(checklistIdPart)) {
         targetChecklist = checklist;
@@ -245,15 +233,14 @@ async function handleViewProgress(action, payload) {
       }
     }
     
-    // If we couldn't find by ID prefix, look for any checklist owned by this user
+    // If not found by ID, check for user's checklists
     if (!targetChecklist) {
       const userChecklists = Object.values(checklists).filter(
         checklist => checklist.employeeId === payload.user.id
       );
       
       if (userChecklists.length > 0) {
-        targetChecklist = userChecklists[0]; // Use the first one
-        console.log('Using first available user checklist:', targetChecklist.id);
+        targetChecklist = userChecklists[0];
       }
     }
     
@@ -268,9 +255,8 @@ async function handleViewProgress(action, payload) {
     
     // Calculate progress
     const progress = checklistController.calculateChecklistProgress(targetChecklist);
-    console.log('Calculated progress:', progress);
     
-    // Send progress summary directly in channel
+    // Create header blocks
     const headerBlocks = [
       {
         type: "header",
@@ -330,7 +316,7 @@ async function handleViewProgress(action, payload) {
       const completedItems = items.filter(item => item.completed);
       const pendingItems = items.filter(item => !item.completed);
       
-      // Only add these sections if there are items to show
+      // Add completed items if any
       if (completedItems.length > 0) {
         categoryBlocks.push({
           type: "section",
@@ -341,6 +327,7 @@ async function handleViewProgress(action, payload) {
         });
       }
       
+      // Add pending items if any
       if (pendingItems.length > 0) {
         categoryBlocks.push({
           type: "section",
@@ -363,9 +350,9 @@ async function handleViewProgress(action, payload) {
         categoryBlocks
       );
     }
-    
   } catch (error) {
     console.error('Error handling view progress:', error);
+    console.error(error.stack);
     await slackService.sendMessage(
       payload.channel.id,
       "Sorry, I encountered an error showing your progress. Please try again."

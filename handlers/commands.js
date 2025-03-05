@@ -147,6 +147,8 @@ function createCategoryBlocks(category, items, checklistId) {
   return blocks;
 }
 
+// handlers/commands.js - Updated handleCreateChecklistCommand function
+
 /**
  * Handle the /create-checklist command with improved UI
  * @param {object} payload - The Slack command payload
@@ -174,6 +176,9 @@ async function handleCreateChecklistCommand(payload) {
         const targetUserInfo = await slackService.getUserInfo(targetUser);
         const targetUserId = targetUserInfo.id;
         
+        // Log the operation
+        console.log(`Creating ${role} checklist for user ${targetUserId} by manager ${user_id}`);
+        
         // Get the checklist for the specified role
         const rawChecklist = await checklistController.getChecklist(role);
         
@@ -187,6 +192,8 @@ async function handleCreateChecklistCommand(payload) {
           role,
           checklistItems
         );
+        
+        console.log(`Created checklist with ID: ${checklistId}`);
         
         // Open a DM channel with the target user
         const dmChannelId = await slackService.openDirectMessageChannel(targetUserId);
@@ -202,17 +209,15 @@ async function handleCreateChecklistCommand(payload) {
         
         // Process each category
         for (const [category, items] of Object.entries(categorizedItems)) {
-          // Send a bold header for the category
-          await slackService.sendMessage(dmChannelId, `*${category}*`);
-          
           console.log(`Sending category ${category} with ${items.length} items`);
           
-          // Create blocks for this category with proper UI
-          const blocks = createCategoryBlocks(category, items, checklistId);
+          // Create blocks for this category using the updated function
+          const blocks = checklistController.createCategoryBlocks(category, items, checklistId);
           
           // Send the blocks for this category
           try {
-            await slackService.sendMessageWithBlocks(dmChannelId, 
+            await slackService.sendMessageWithBlocks(
+              dmChannelId, 
               `Items for ${category}`, 
               blocks
             );
@@ -220,13 +225,11 @@ async function handleCreateChecklistCommand(payload) {
             console.error(`Failed to send blocks for category "${category}":`, error.message);
             
             // Fallback to plain text items
+            await slackService.sendMessage(dmChannelId, `*${category}*`);
             for (const item of items) {
               await slackService.sendMessage(dmChannelId, `• ${item.text}`);
             }
           }
-          
-          // Add a small spacer between categories
-          await slackService.sendMessage(dmChannelId, "ㅤ");
         }
         
         // Add view progress button at the end
@@ -239,13 +242,14 @@ async function handleCreateChecklistCommand(payload) {
               text: "View Progress Summary",
               emoji: true
             },
-            action_id: `view_progress_${checklistId.substring(0, 8)}`,
+            action_id: `view_progress_${checklistId}`, // Use the full checklist ID
             style: "primary"
           }]
         }];
         
         try {
-          await slackService.sendMessageWithBlocks(dmChannelId, 
+          await slackService.sendMessageWithBlocks(
+            dmChannelId, 
             "Track your progress with the button below:",
             progressBlock
           );
@@ -277,11 +281,13 @@ async function handleCreateChecklistCommand(payload) {
     }
   } catch (error) {
     console.error('Error creating checklist:', error);
+    console.error(error.stack);
     await slackService.sendMessage(channel_id, 
       "Sorry, I couldn't create that checklist. Please try again."
     );
   }
 }
+
 /**
  * Handle the /check-progress command (manager-only)
  * @param {object} payload - The Slack command payload

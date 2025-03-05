@@ -507,6 +507,8 @@ function createProgressBar(percentage) {
   return `\`${filled}${empty}\` ${percentage}%`;
 }
 
+// controllers/checklist.js - Updated createCategoryBlocks function
+
 /**
  * Create checklist blocks with proper UI colors and reliable item lookup
  * @param {string} category - Category name
@@ -517,22 +519,30 @@ function createProgressBar(percentage) {
 function createCategoryBlocks(category, items, checklistId) {
   const blocks = [];
   
-  // Add category header context block
+  // Add category header
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*${category}*`
+    }
+  });
+  
+  // Add instructions for clarity
   blocks.push({
     type: "context",
     elements: [
       {
         type: "mrkdwn",
-        text: "Click the buttons to mark items as complete:"
+        text: "Click the buttons to mark items as complete or incomplete:"
       }
     ]
   });
   
-  // Add each item with a button that follows standard UI conventions
+  // Add each item with a button using a consistent action_id pattern
   for (const item of items) {
-    // Simple action ID that includes "toggle_" prefix
-    const actionId = `toggle_item_${item.id.substring(0, 8)}`;
-    
+    // IMPORTANT: Use a standardized action_id format and store the full item ID in value
+    // This ensures we can reliably find the item when processing interactions
     blocks.push({
       type: "actions",
       elements: [
@@ -540,22 +550,21 @@ function createCategoryBlocks(category, items, checklistId) {
           type: "button",
           text: {
             type: "plain_text",
-            text: item.completed ? "✓" : "○", // Empty circle if not completed, checkmark if completed
+            text: item.completed ? "✅" : "⬜", // Checkmark if completed, empty box if not
             emoji: true
           },
           style: item.completed ? "primary" : "danger", // Green if completed, red if not
-          value: item.id, // Store FULL item ID in the value for reliable lookup
-          action_id: actionId
+          value: item.id, // Store FULL item ID for reliable lookup
+          action_id: `toggle_item_${item.id}` // Consistent format with full item ID
         },
         {
           type: "button",
           text: {
             type: "plain_text",
-            text: item.text,
+            text: item.text.substring(0, 75) + (item.text.length > 75 ? "..." : ""),
             emoji: true
           },
-          value: item.id, // Store FULL item ID here too
-          action_id: `view_${actionId}`
+          action_id: `item_text_${item.id}`
         }
       ]
     });
