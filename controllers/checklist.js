@@ -65,8 +65,10 @@ function parseRoleSpecification(text) {
   };
 }
 
+// controllers/checklist.js - Updated isUserManager function
+
 /**
- * Check if a user is a manager (placeholder until AAD integration)
+ * Check if a user is a manager based on their Slack profile title
  * @param {string} userId - Slack user ID to check
  * @returns {Promise<boolean>} - Whether the user is a manager
  */
@@ -74,27 +76,53 @@ async function isUserManager(userId) {
   try {
     console.log(`Checking if user ${userId} is a manager`);
     
-    // TEMPORARY OVERRIDE FOR TESTING: Allow all users to be managers
-    // This lets you test the checklist functionality without permissions
-    // Remove this in production
-    console.log('⚠️ DEVELOPMENT MODE: All users are considered managers for testing');
-    return true;
+    // For development/testing override
+    if (process.env.NODE_ENV === 'development' && process.env.ALLOW_ALL_MANAGERS === 'true') {
+      console.log('⚠️ DEVELOPMENT MODE: All users are considered managers for testing');
+      return true;
+    }
     
-    /* COMMENTED OUT UNTIL PERMISSIONS ARE FIXED
-    // In production, you would query AAD to check if the user is a manager
-    // For now, we'll check if the user has "manager" in their title
+    // Get the user's profile from Slack
     const userInfo = await slackService.getUserInfo(userId);
-    const title = userInfo.profile?.title || '';
     
-    // Check for manager indicators in the title
-    const managerKeywords = ['manager', 'director', 'lead', 'head', 'chief', 'vp', 'president', 'ceo', 'cto', 'cfo', 'coo'];
-    return managerKeywords.some(keyword => title.toLowerCase().includes(keyword));
-    */
+    if (!userInfo || !userInfo.profile) {
+      console.error(`Could not retrieve profile for user ${userId}`);
+      return false;
+    }
+    
+    // Check the title field in the user's profile
+    const userTitle = userInfo.profile.title || '';
+    console.log(`User ${userId} has title: "${userTitle}"`);
+    
+    // List of keywords that indicate a manager role
+    const managerKeywords = [
+      'manager', 
+      'director', 
+      'lead', 
+      'head', 
+      'chief', 
+      'vp', 
+      'vice president',
+      'president', 
+      'ceo', 
+      'cto', 
+      'cfo', 
+      'coo',
+      'supervisor'
+    ];
+    
+    // Check if any manager keyword appears in the title
+    const isManager = managerKeywords.some(keyword => 
+      userTitle.toLowerCase().includes(keyword)
+    );
+    
+    console.log(`User ${userId} ${isManager ? 'IS' : 'IS NOT'} a manager based on title`);
+    return isManager;
   } catch (error) {
     console.error('Error checking if user is manager:', error);
-    // For testing only:
-    console.log('⚠️ Error in manager check, defaulting to manager=true for testing');
-    return true;
+    
+    // For safety in POC, return false on errors
+    return false;
   }
 }
 

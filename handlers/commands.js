@@ -59,6 +59,8 @@ function handleCommands(req, res) {
   }
 }
 
+// handlers/commands.js - Updated handleAskBuddyCommand function
+
 /**
  * Handle the /askbuddy command
  * @param {object} payload - The Slack command payload
@@ -70,7 +72,32 @@ async function handleAskBuddyCommand(payload) {
   try {
     console.log(`Processing askbuddy command with text: "${text}"`);
     
-    // Get answer from Langflow with timeout and error handling
+    // Special command to check if user is a manager - for testing purposes
+    if (text.toLowerCase().trim() === 'am i a manager' || 
+        text.toLowerCase().trim() === 'check if i am a manager') {
+      
+      const isManager = await checklistController.isUserManager(user_id);
+      
+      if (isManager) {
+        await slackService.sendMessage(channel_id, 
+          "✅ Yes, you are recognized as a manager based on your Slack profile title. " +
+          "You can use manager-only commands like `/create-checklist` and `/check-progress`."
+        );
+      } else {
+        const userInfo = await slackService.getUserInfo(user_id);
+        const currentTitle = userInfo?.profile?.title || '[No title set]';
+        
+        await slackService.sendMessage(channel_id, 
+          `❌ No, you are not currently recognized as a manager.\n\n` +
+          `Your current Slack profile title is: "${currentTitle}"\n\n` +
+          `To be recognized as a manager, please update your Slack profile title to include terms like ` +
+          `"manager", "director", "lead", etc. Then try this command again.`
+        );
+      }
+      return;
+    }
+    
+    // Regular askbuddy command - get answer from Langflow
     let answer;
     try {
       console.log("Querying Langflow...");
@@ -147,10 +174,10 @@ function createCategoryBlocks(category, items, checklistId) {
   return blocks;
 }
 
-// handlers/commands.js - Updated handleCreateChecklistCommand function
+// handlers/commands.js - Updated manager-only commands
 
 /**
- * Handle the /create-checklist command with improved UI
+ * Handle the /create-checklist command (manager-only)
  * @param {object} payload - The Slack command payload
  * @returns {Promise<void>}
  */
@@ -158,15 +185,17 @@ async function handleCreateChecklistCommand(payload) {
   const { text, user_id, channel_id } = payload;
   
   try {
-    // Verify the user is a manager
+    // Verify the user is a manager - strict check
     const isManager = await checklistController.isUserManager(user_id);
     
     if (!isManager) {
       return await slackService.sendMessage(channel_id, 
-        "Sorry, only managers can create onboarding checklists for team members."
+        "Sorry, only managers can create onboarding checklists. " +
+        "To be recognized as a manager, please update your Slack profile title to include terms like 'manager', 'director', or 'lead'."
       );
     }
     
+    // Process the command for managers - rest of function unchanged
     // Parse the role specification
     const { role, targetUser, isForOtherUser } = checklistController.parseRoleSpecification(text);
     
@@ -211,7 +240,7 @@ async function handleCreateChecklistCommand(payload) {
         for (const [category, items] of Object.entries(categorizedItems)) {
           console.log(`Sending category ${category} with ${items.length} items`);
           
-          // Create blocks for this category using the updated function
+          // Create blocks for this category
           const blocks = checklistController.createCategoryBlocks(category, items, checklistId);
           
           // Send the blocks for this category
@@ -284,6 +313,104 @@ async function handleCreateChecklistCommand(payload) {
     console.error(error.stack);
     await slackService.sendMessage(channel_id, 
       "Sorry, I couldn't create that checklist. Please try again."
+    );
+  }
+}
+
+/**
+ * Handle the /check-progress command (manager-only)
+ * @param {object} payload - The Slack command payload
+ * @returns {Promise<void>}
+ */
+async function handleCheckProgressCommand(payload) {
+  const { text, user_id, channel_id } = payload;
+  
+  try {
+    // Verify the user is a manager - strict check
+    const isManager = await checklistController.isUserManager(user_id);
+    
+    if (!isManager) {
+      return await slackService.sendMessage(channel_id, 
+        "Sorry, only managers can check onboarding progress. " +
+        "To be recognized as a manager, please update your Slack profile title to include terms like 'manager', 'director', or 'lead'."
+      );
+    }
+    
+    // Parse the username from the command
+    const targetUsername = text.trim().replace(/^@/, '');
+    
+    if (!targetUsername) {
+      return await slackService.sendMessage(channel_id, 
+        "Please specify a user: `/check-progress @username`"
+      );
+    }
+    
+    // Get target user info
+    try {
+      const targetUserInfo = await slackService.getUserInfo(targetUsername);
+      const targetUserId = targetUserInfo.id;
+      
+      // Get checklists for this employee created by this manager
+      const checklists = checklistController.getChecklistsByEmployeeAndManager(targetUserId, user_id);
+      
+      if (checklists.length === 0) {
+        return await slackService.sendMessage(channel_id, 
+          `No onboarding checklists found for <@${targetUserId}>`
+        );
+      }
+      
+      // If multiple checklists, let manager choose which one to view
+      if (checklists.length > 1) {
+        const blocks = [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `Found multiple checklists for <@${targetUserId}>. Which one would you like to view?`
+            }
+          }
+        ];
+        
+        checklists.forEach(list => {
+          blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*${list.role}* (Created: ${new Date(list.createdAt).toLocaleDateString()})`
+            },
+            accessory: {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "View Progress",
+                emoji: true
+              },
+              value: list.id,
+              action_id: `view_emp_${list.id.substring(0, 7)}`
+            }
+          });
+        });
+        
+        return await slackService.sendMessageWithBlocks(channel_id, 
+          "Found multiple checklists",
+          blocks
+        );
+      }
+      
+      // If only one checklist, show progress immediately
+      const checklist = checklists[0];
+      await showChecklistProgress(checklist, channel_id);
+      
+    } catch (error) {
+      console.error('Error finding user:', error);
+      await slackService.sendMessage(channel_id, 
+        `I couldn't find user @${targetUsername}. Please verify the username and try again.`
+      );
+    }
+  } catch (error) {
+    console.error('Error checking progress:', error);
+    await slackService.sendMessage(channel_id, 
+      "Sorry, I encountered an error while checking progress."
     );
   }
 }
