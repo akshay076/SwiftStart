@@ -1,0 +1,1286 @@
+{
+    "id": "b2ddfabf-a0d3-4829-a900-400d677b65d8",
+    "data": {
+      "nodes": [
+        {
+          "data": {
+            "id": "RAG-System-l92Ct",
+            "node": {
+              "description": "## Enterprise-Grade Onboarding Assistant\n\nThis flow implements a Retrieval Augmented Generation (RAG) system for the SwiftStart onboarding assistant. It includes:\n\n- Document processing pipeline\n- Vector database for semantic search\n- Query analysis and classification\n- Context-enhanced responses\n- Response verification and formatting\n\nThe assistant can answer questions about company policies, procedures, and create tailored onboarding checklists.",
+              "display_name": "SwiftStart RAG System",
+              "documentation": "",
+              "template": {
+                "backgroundColor": "blue"
+              }
+            }
+          },
+          "dragging": false,
+          "height": 332,
+          "id": "RAG-System-l92Ct",
+          "measured": {
+            "height": 332,
+            "width": 325
+          },
+          "position": {
+            "x": 133.95771636602308,
+            "y": 753.6499167055161
+          },
+          "positionAbsolute": {
+            "x": 66.38770028934243,
+            "y": 749.744424427066
+          },
+          "resizing": false,
+          "selected": false,
+          "style": {
+            "height": 250,
+            "width": 324
+          },
+          "type": "noteNode",
+          "width": 324
+        },
+        {
+          "id": "ChatInput-TgJla",
+          "type": "genericNode",
+          "position": {
+            "x": 300,
+            "y": 300
+          },
+          "data": {
+            "node": {
+              "template": {
+                "_type": "Component",
+                "files": {
+                  "trace_as_metadata": true,
+                  "file_path": "",
+                  "fileTypes": [
+                    "txt", "md", "pdf", "docx"
+                  ],
+                  "list": true,
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "files",
+                  "value": "",
+                  "display_name": "Company Documents",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Upload company documents for knowledge retrieval.",
+                  "title_case": false,
+                  "type": "file",
+                  "_input_type": "FileInput"
+                },
+                "input_value": {
+                  "tool_mode": false,
+                  "trace_as_input": true,
+                  "multiline": true,
+                  "trace_as_metadata": true,
+                  "load_from_db": false,
+                  "list": false,
+                  "required": false,
+                  "placeholder": "Ask a question or request an onboarding checklist...",
+                  "show": true,
+                  "name": "input_value",
+                  "value": "",
+                  "display_name": "Question",
+                  "advanced": false,
+                  "input_types": [],
+                  "dynamic": false,
+                  "info": "Your question about onboarding or request for a checklist.",
+                  "title_case": false,
+                  "type": "str",
+                  "_input_type": "MultilineInput"
+                }
+              },
+              "description": "Ask onboarding questions or request checklists",
+              "icon": "MessagesSquare",
+              "base_classes": [
+                "Message"
+              ],
+              "display_name": "Onboarding Query",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "ChatInput",
+            "id": "ChatInput-TgJla"
+          },
+          "selected": false,
+          "measured": {
+            "width": 192,
+            "height": 150
+          }
+        },
+        {
+          "id": "DocumentLoader-KF53l",
+          "type": "genericNode",
+          "position": {
+            "x": 120,
+            "y": 480
+          },
+          "data": {
+            "node": {
+              "template": {
+                "file_path": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": false,
+                  "value": "",
+                  "name": "file_path",
+                  "display_name": "File Path",
+                  "advanced": false,
+                  "input_types": ["FileInput"],
+                  "dynamic": false,
+                  "info": "Path to the file to load",
+                  "type": "file"
+                },
+                "loader_kwargs": {
+                  "required": false,
+                  "placeholder": "{}",
+                  "show": true,
+                  "multiline": true,
+                  "value": "{}",
+                  "name": "loader_kwargs",
+                  "display_name": "Loader Arguments",
+                  "advanced": true,
+                  "dynamic": false,
+                  "info": "Arguments to pass to the loader",
+                  "type": "dict"
+                }
+              },
+              "description": "Load documents from company knowledge base",
+              "icon": "Database",
+              "display_name": "Document Loader",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "DocumentLoader",
+            "id": "DocumentLoader-KF53l"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "TextSplitter-RF92M",
+          "type": "genericNode",
+          "position": {
+            "x": 120,
+            "y": 640
+          },
+          "data": {
+            "node": {
+              "template": {
+                "chunk_size": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "chunk_size",
+                  "value": 1000,
+                  "display_name": "Chunk Size",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Size of chunks to split documents into",
+                  "type": "int"
+                },
+                "chunk_overlap": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "chunk_overlap",
+                  "value": 200,
+                  "display_name": "Chunk Overlap",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Overlap between chunks for context preservation",
+                  "type": "int"
+                }
+              },
+              "description": "Split documents into manageable chunks",
+              "icon": "Scissors",
+              "display_name": "Text Splitter",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "RecursiveCharacterTextSplitter",
+            "id": "TextSplitter-RF92M"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "Embeddings-J934K",
+          "type": "genericNode",
+          "position": {
+            "x": 120,
+            "y": 800
+          },
+          "data": {
+            "node": {
+              "template": {
+                "api_key": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "api_key",
+                  "value": "",
+                  "display_name": "Google API Key",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Your API key for embeddings",
+                  "type": "str",
+                  "password": true
+                },
+                "model_name": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "model_name",
+                  "value": "embedding-001",
+                  "display_name": "Model Name",
+                  "advanced": false,
+                  "dynamic": false,
+                  "options": ["embedding-001", "embedding-002"],
+                  "info": "Embedding model to use",
+                  "type": "str"
+                }
+              },
+              "description": "Convert text chunks to vector embeddings",
+              "icon": "VectorPen",
+              "display_name": "Embeddings",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "GoogleGenerativeAIEmbeddings",
+            "id": "Embeddings-J934K"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "VectorStore-9B25P",
+          "type": "genericNode",
+          "position": {
+            "x": 120,
+            "y": 960
+          },
+          "data": {
+            "node": {
+              "template": {
+                "collections_name": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "collections_name",
+                  "value": "swiftstart_docs",
+                  "display_name": "Collection Name",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Name of the vector collection",
+                  "type": "str"
+                }
+              },
+              "description": "Store document embeddings for retrieval",
+              "icon": "Database",
+              "display_name": "Vector Store",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "Chroma",
+            "id": "VectorStore-9B25P"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "QueryClassifier-2M69L",
+          "type": "genericNode",
+          "position": {
+            "x": 400,
+            "y": 480
+          },
+          "data": {
+            "node": {
+              "template": {
+                "prompt_template": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "prompt_template",
+                  "value": "Analyze the following user query and classify it into one of these categories:\n1. CHECKLIST - User is requesting an onboarding checklist\n2. GENERAL_QUESTION - User is asking a general onboarding question\n3. POLICY - User is asking about specific company policies\n4. OUT_OF_SCOPE - Query is unrelated to onboarding or company information\n\nUser Query: {query}\n\nReturn ONLY the category name without explanation.",
+                  "display_name": "Classification Prompt",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Prompt to classify user queries",
+                  "type": "str"
+                }
+              },
+              "description": "Determine the type of user query",
+              "icon": "ScanSearch",
+              "display_name": "Query Classifier",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PromptTemplate",
+            "id": "QueryClassifier-2M69L"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "ClassifierLLM-H492Z",
+          "type": "genericNode",
+          "position": {
+            "x": 400,
+            "y": 640
+          },
+          "data": {
+            "node": {
+              "template": {
+                "api_key": {
+                  "load_from_db": false,
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "api_key",
+                  "value": "",
+                  "display_name": "Google API Key",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "The Google API Key to use for classification",
+                  "password": true,
+                  "type": "str"
+                },
+                "model_name": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "model_name",
+                  "value": "gemini-1.5-flash-latest",
+                  "display_name": "Model Name",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Lightweight model for query classification",
+                  "type": "str"
+                },
+                "temperature": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "temperature",
+                  "value": 0.1,
+                  "display_name": "Temperature",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Lower temperature for more consistent classification",
+                  "type": "float"
+                }
+              },
+              "description": "Classify the query type",
+              "icon": "Brain",
+              "display_name": "Classifier Model",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "GoogleGenerativeAIModel",
+            "id": "ClassifierLLM-H492Z"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "QueryRouter-4K89R",
+          "type": "genericNode",
+          "position": {
+            "x": 400,
+            "y": 800
+          },
+          "data": {
+            "node": {
+              "template": {
+                "condition": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "condition",
+                  "value": "def route_query(classification):\n    if \"CHECKLIST\" in classification:\n        return \"checklist\"\n    elif \"GENERAL_QUESTION\" in classification or \"POLICY\" in classification:\n        return \"question\"\n    else:\n        return \"out_of_scope\"",
+                  "display_name": "Routing Logic",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Logic to route queries based on classification",
+                  "type": "code"
+                }
+              },
+              "description": "Route queries to appropriate processing paths",
+              "icon": "GitFork",
+              "display_name": "Query Router",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PythonFunction",
+            "id": "QueryRouter-4K89R"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "Retriever-L201K",
+          "type": "genericNode",
+          "position": {
+            "x": 680,
+            "y": 480
+          },
+          "data": {
+            "node": {
+              "template": {
+                "search_type": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "search_type",
+                  "value": "similarity",
+                  "display_name": "Search Type",
+                  "advanced": false,
+                  "dynamic": false,
+                  "options": ["similarity", "mmr"],
+                  "info": "Method to retrieve relevant documents",
+                  "type": "str"
+                },
+                "k": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "k",
+                  "value": 5,
+                  "display_name": "Number of Results",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Number of documents to retrieve",
+                  "type": "int"
+                },
+                "fetch_k": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "fetch_k",
+                  "value": 20,
+                  "display_name": "Fetch k",
+                  "advanced": true,
+                  "dynamic": false,
+                  "info": "Number of documents to fetch before filtering",
+                  "type": "int"
+                },
+                "lambda_mult": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "lambda_mult",
+                  "value": 0.5,
+                  "display_name": "Lambda Multiplier",
+                  "advanced": true,
+                  "dynamic": false,
+                  "info": "Diversity of results (for MMR search)",
+                  "type": "float"
+                }
+              },
+              "description": "Retrieve relevant documents from vector store",
+              "icon": "Search",
+              "display_name": "Document Retriever",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "VectorStoreRetriever",
+            "id": "Retriever-L201K"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "ContextBuilder-6G90Q",
+          "type": "genericNode",
+          "position": {
+            "x": 680,
+            "y": 640
+          },
+          "data": {
+            "node": {
+              "template": {
+                "prompt_template": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "prompt_template",
+                  "value": "You are SwiftStart, an AI-powered onboarding assistant for Horizon Technologies. Your answers must be based ONLY on the company information provided in the context below. Your purpose is to help employees navigate their first days, weeks, and months at the company.\n\nCONTEXT:\n{context}\n\nWhen answering questions:\n- Only provide information that is explicitly stated in the company documents\n- Cite your sources using [Doc Name, Section] when possible\n- If the answer isn't in the provided context, say \"I don't have specific information about that in my knowledge base. Please contact [appropriate department] for assistance.\"\n- Use Horizon Technologies' terminology and acronyms as defined in the documents\n\nUser Question: {query}",
+                  "display_name": "Question Context",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Template to format retrieved context with user query",
+                  "type": "str"
+                }
+              },
+              "description": "Build context-enhanced prompt for questions",
+              "icon": "Combine",
+              "display_name": "Question Context",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PromptTemplate",
+            "id": "ContextBuilder-6G90Q"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "ChecklistBuilder-8H32R",
+          "type": "genericNode",
+          "position": {
+            "x": 960,
+            "y": 480
+          },
+          "data": {
+            "node": {
+              "template": {
+                "prompt_template": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "prompt_template",
+                  "value": "You are SwiftStart, an AI-powered onboarding assistant for Horizon Technologies. Your task is to create a personalized onboarding checklist based on the user's request and the company's guidelines. Use ONLY information from the company documents provided in the context below.\n\nCONTEXT:\n{context}\n\nWhen creating checklists, follow these strict guidelines:\n- Create MAXIMUM 15 items total (not per category) - this is a strict limit\n- Organize items into exactly 3 categories: \"First Day\", \"First Week\", and \"First Month\"\n- Put no more than 5 items in each category\n- Write each item as a simple task starting with a verb\n- Keep each task under 60 characters for better display\n- Write in plain text only without ANY special formatting (no bold, italic, etc.)\n- Only include tasks that are mentioned in or can be reasonably inferred from company documents\n- Ensure tasks are specific and relevant to the requested role\n\nUser Request: {query}",
+                  "display_name": "Checklist Context",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Template to format retrieved context for checklist creation",
+                  "type": "str"
+                }
+              },
+              "description": "Build context-enhanced prompt for checklists",
+              "icon": "CheckSquare",
+              "display_name": "Checklist Builder",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PromptTemplate",
+            "id": "ChecklistBuilder-8H32R"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "GoogleGenerativeAIModel-mj24V",
+          "type": "genericNode",
+          "position": {
+            "x": 820,
+            "y": 800
+          },
+          "data": {
+            "node": {
+              "template": {
+                "_type": "Component",
+                "api_key": {
+                  "load_from_db": false,
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "api_key",
+                  "value": "",
+                  "display_name": "Google API Key",
+                  "advanced": false,
+                  "input_types": [
+                    "Message"
+                  ],
+                  "dynamic": false,
+                  "info": "The Google API Key to use for the Google Generative AI.",
+                  "real_time_refresh": true,
+                  "title_case": false,
+                  "password": true,
+                  "type": "str",
+                  "_input_type": "SecretStrInput"
+                },
+                "input_value": {
+                  "trace_as_input": true,
+                  "tool_mode": false,
+                  "trace_as_metadata": true,
+                  "load_from_db": false,
+                  "list": false,
+                  "list_add_label": "Add More",
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "input_value",
+                  "value": "",
+                  "display_name": "Input",
+                  "advanced": false,
+                  "input_types": [
+                    "Message"
+                  ],
+                  "dynamic": false,
+                  "info": "",
+                  "title_case": false,
+                  "type": "str",
+                  "_input_type": "MessageInput"
+                },
+                "model_name": {
+                  "tool_mode": false,
+                  "trace_as_metadata": true,
+                  "options": [
+                    "gemini-1.5-pro"
+                  ],
+                  "options_metadata": [],
+                  "combobox": true,
+                  "dialog_inputs": {},
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "model_name",
+                  "value": "gemini-1.5-pro",
+                  "display_name": "Model",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "The name of the model to use.",
+                  "refresh_button": true,
+                  "title_case": false,
+                  "type": "str",
+                  "_input_type": "DropdownInput"
+                },
+                "temperature": {
+                  "tool_mode": false,
+                  "min_label": "",
+                  "max_label": "",
+                  "min_label_icon": "",
+                  "max_label_icon": "",
+                  "slider_buttons": false,
+                  "slider_buttons_options": [],
+                  "slider_input": false,
+                  "range_spec": {
+                    "step_type": "float",
+                    "min": 0,
+                    "max": 2,
+                    "step": 0.01
+                  },
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "temperature",
+                  "value": 0.1,
+                  "display_name": "Temperature",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Controls randomness. Lower values are more deterministic.",
+                  "title_case": false,
+                  "type": "slider",
+                  "_input_type": "SliderInput"
+                },
+                "max_output_tokens": {
+                  "tool_mode": false,
+                  "trace_as_metadata": true,
+                  "list": false,
+                  "list_add_label": "Add More",
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "max_output_tokens",
+                  "value": 2048,
+                  "display_name": "Max Output Tokens",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "The maximum number of tokens to generate.",
+                  "title_case": false,
+                  "type": "int",
+                  "_input_type": "IntInput"
+                }
+              },
+              "description": "Generate response using Google Generative AI",
+              "icon": "GoogleGenerativeAI",
+              "base_classes": [
+                "LanguageModel",
+                "Message"
+              ],
+              "display_name": "Response Generator",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "GoogleGenerativeAIModel",
+            "id": "GoogleGenerativeAIModel-mj24V"
+          },
+          "selected": false,
+          "measured": {
+            "width": 320,
+            "height": 781
+          }
+        },
+        {
+          "id": "SafetyFilter-5R92L",
+          "type": "genericNode",
+          "position": {
+            "x": 1080,
+            "y": 800
+          },
+          "data": {
+            "node": {
+              "template": {
+                "rules": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "rules",
+                  "value": "def filter_response(response):\n    # Check for non-compliance with guidelines\n    issues = []\n    \n    # Check if response has too many items in a checklist\n    item_count = response.lower().count('- ')\n    if item_count > 20:\n        issues.append(\"Too many checklist items\")\n    \n    # Check for potential PII or sensitive information\n    sensitive_patterns = [\n        \"password\", \"social security\", \"ssn\", \"birth date\", \n        \"credit card\", \"bank account\", \"address\"\n    ]\n    for pattern in sensitive_patterns:\n        if pattern in response.lower():\n            issues.append(f\"Contains potentially sensitive information: {pattern}\")\n    \n    # Check for unsupported claims\n    if \"I guarantee\" in response or \"I promise\" in response:\n        issues.append(\"Contains unsupported guarantees\")\n    \n    # Remove any markdown bold/italic formatting\n    response = response.replace('**', '').replace('__', '')\n    response = response.replace('*', '').replace('_', '')\n    \n    # If issues found, add a notice\n    if issues:\n        response = f\"[NOTICE: Response modified to comply with guidelines]\\n\\n{response}\"\n    \n    return response",
+                  "display_name": "Safety Rules",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Rules to ensure response meets company guidelines",
+                  "type": "code"
+                }
+              },
+              "description": "Ensure responses meet safety and compliance guidelines",
+              "icon": "Shield",
+              "display_name": "Safety Filter",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PythonFunction",
+            "id": "SafetyFilter-5R92L"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "ChatOutput-XPCO0",
+          "type": "genericNode",
+          "position": {
+            "x": 1080,
+            "y": 960
+          },
+          "data": {
+            "node": {
+              "template": {
+                "_type": "Component",
+                "input_value": {
+                  "trace_as_metadata": true,
+                  "list": false,
+                  "list_add_label": "Add More",
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "input_value",
+                  "value": "",
+                  "display_name": "Text",
+                  "advanced": false,
+                  "input_types": [
+                    "Data",
+                    "DataFrame",
+                    "Message"
+                  ],
+                  "dynamic": false,
+                  "info": "Message to be passed as output.",
+                  "title_case": false,
+                  "type": "other",
+                  "_input_type": "HandleInput"
+                },
+                "sender": {
+                  "tool_mode": false,
+                  "trace_as_metadata": true,
+                  "options": [
+                    "Machine",
+                    "User"
+                  ],
+                  "options_metadata": [],
+                  "combobox": false,
+                  "dialog_inputs": {},
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "sender",
+                  "value": "Machine",
+                  "display_name": "Sender Type",
+                  "advanced": true,
+                  "dynamic": false,
+                  "info": "Type of sender.",
+                  "title_case": false,
+                  "type": "str",
+                  "_input_type": "DropdownInput"
+                },
+                "sender_name": {
+                  "tool_mode": false,
+                  "trace_as_input": true,
+                  "trace_as_metadata": true,
+                  "load_from_db": false,
+                  "list": false,
+                  "list_add_label": "Add More",
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "sender_name",
+                  "value": "SwiftStart",
+                  "display_name": "Sender Name",
+                  "advanced": true,
+                  "input_types": [
+                    "Message"
+                  ],
+                  "dynamic": false,
+                  "info": "Name of the sender.",
+                  "title_case": false,
+                  "type": "str",
+                  "_input_type": "MessageTextInput"
+                }
+              },
+              "description": "Display the response in the chat",
+              "icon": "MessagesSquare",
+              "base_classes": [
+                "Message"
+              ],
+              "display_name": "Response Output",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "ChatOutput",
+            "id": "ChatOutput-XPCO0"
+          },
+          "selected": false,
+          "measured": {
+            "width": 192,
+            "height": 150
+          }
+        },
+        {
+          "id": "FeedbackCollector-7T67M",
+          "type": "genericNode",
+          "position": {
+            "x": 1300,
+            "y": 800
+          },
+          "data": {
+            "node": {
+              "template": {
+                "logging_function": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "logging_function",
+                  "value": "def log_interaction(query, response, context_used, query_type):\n    # Log interaction details for analysis\n    print(f\"Query Type: {query_type}\")\n    print(f\"Query: {query}\")\n    print(f\"Response Length: {len(response)}print(f\"Response Length: {len(response)}\")\n    \n    # In production, store this in a database\n    # Example: log to a JSON file\n    import json\n    from datetime import datetime\n    import os\n    \n    log_dir = './logs'\n    os.makedirs(log_dir, exist_ok=True)\n    \n    log_entry = {\n        'timestamp': datetime.now().isoformat(),\n        'query_type': query_type,\n        'query': query,\n        'response_length': len(response),\n        'context_used': context_used[:500] + '...' if len(context_used) > 500 else context_used\n    }\n    \n    log_file = os.path.join(log_dir, f'interactions_{datetime.now().strftime(\"%Y%m%d\")}.jsonl')\n    \n    with open(log_file, 'a') as f:\n        f.write(json.dumps(log_entry) + '\\n')\n    \n    return True",
+                  "display_name": "Logging Function",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Log interactions for analysis and improvement",
+                  "type": "code"
+                }
+              },
+              "description": "Collect interaction data for monitoring and improvement",
+              "icon": "BarChart",
+              "display_name": "Feedback Collector",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PythonFunction",
+            "id": "FeedbackCollector-7T67M"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "OutOfScopeHandler-3P65N",
+          "type": "genericNode",
+          "position": {
+            "x": 680,
+            "y": 960
+          },
+          "data": {
+            "node": {
+              "template": {
+                "prompt_template": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "prompt_template",
+                  "value": "You are SwiftStart, an AI-powered onboarding assistant for Horizon Technologies. The user has asked a question that appears to be outside the scope of your knowledge about onboarding and company policies.\n\nYour task is to politely explain that you're focused on helping with onboarding-related questions and suggest who they might contact instead. Be helpful but don't provide information outside your scope.\n\nUser Query: {query}\n\nRespond with a polite redirection.",
+                  "display_name": "Out of Scope Response",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Template for handling queries outside the assistant's scope",
+                  "type": "str"
+                }
+              },
+              "description": "Handle queries outside the assistant's scope",
+              "icon": "AlertCircle",
+              "display_name": "Out of Scope Handler",
+              "custom_fields": {}
+            },
+            "showNode": true,
+            "type": "PromptTemplate",
+            "id": "OutOfScopeHandler-3P65N"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        }
+      ],
+      "edges": [
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "QueryClassifier-2M69L",
+          "targetHandle": "query",
+          "id": "edge-chatinput-queryclassifier",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "QueryClassifier-2M69L",
+          "sourceHandle": "output",
+          "target": "ClassifierLLM-H492Z",
+          "targetHandle": "input_value",
+          "id": "edge-queryclassifier-classifierllm",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ClassifierLLM-H492Z",
+          "sourceHandle": "text_output",
+          "target": "QueryRouter-4K89R",
+          "targetHandle": "classification",
+          "id": "edge-classifierllm-queryrouter",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "Retriever-L201K",
+          "targetHandle": "query",
+          "id": "edge-chatinput-retriever",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "files",
+          "target": "DocumentLoader-KF53l",
+          "targetHandle": "file_path",
+          "id": "edge-chatinput-documentloader",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "DocumentLoader-KF53l",
+          "sourceHandle": "output",
+          "target": "TextSplitter-RF92M",
+          "targetHandle": "documents",
+          "id": "edge-documentloader-textsplitter",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "TextSplitter-RF92M",
+          "sourceHandle": "output",
+          "target": "Embeddings-J934K",
+          "targetHandle": "documents",
+          "id": "edge-textsplitter-embeddings",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Embeddings-J934K",
+          "sourceHandle": "embeddings",
+          "target": "VectorStore-9B25P",
+          "targetHandle": "embeddings",
+          "id": "edge-embeddings-vectorstore",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "VectorStore-9B25P",
+          "sourceHandle": "retriever",
+          "target": "Retriever-L201K",
+          "targetHandle": "vectorstore",
+          "id": "edge-vectorstore-retriever",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "QueryRouter-4K89R",
+          "sourceHandle": "result",
+          "target": "OutOfScopeHandler-3P65N",
+          "targetHandle": "out_of_scope",
+          "id": "edge-queryrouter-outofscope",
+          "data": {
+            "transforms": [
+              {
+                "transform_name": "branch",
+                "transform_value": "out_of_scope"
+              }
+            ]
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "QueryRouter-4K89R",
+          "sourceHandle": "result",
+          "target": "ContextBuilder-6G90Q",
+          "targetHandle": "question",
+          "id": "edge-queryrouter-contextbuilder",
+          "data": {
+            "transforms": [
+              {
+                "transform_name": "branch",
+                "transform_value": "question"
+              }
+            ]
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "QueryRouter-4K89R",
+          "sourceHandle": "result",
+          "target": "ChecklistBuilder-8H32R",
+          "targetHandle": "checklist",
+          "id": "edge-queryrouter-checklistbuilder",
+          "data": {
+            "transforms": [
+              {
+                "transform_name": "branch",
+                "transform_value": "checklist"
+              }
+            ]
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Retriever-L201K",
+          "sourceHandle": "documents",
+          "target": "ContextBuilder-6G90Q",
+          "targetHandle": "context",
+          "id": "edge-retriever-contextbuilder",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Retriever-L201K",
+          "sourceHandle": "documents",
+          "target": "ChecklistBuilder-8H32R",
+          "targetHandle": "context",
+          "id": "edge-retriever-checklistbuilder",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "ContextBuilder-6G90Q",
+          "targetHandle": "query",
+          "id": "edge-chatinput-contextbuilder",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "ChecklistBuilder-8H32R",
+          "targetHandle": "query",
+          "id": "edge-chatinput-checklistbuilder",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "OutOfScopeHandler-3P65N",
+          "targetHandle": "query",
+          "id": "edge-chatinput-outofscope",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ContextBuilder-6G90Q",
+          "sourceHandle": "output",
+          "target": "GoogleGenerativeAIModel-mj24V",
+          "targetHandle": "input_value",
+          "id": "edge-contextbuilder-model",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChecklistBuilder-8H32R",
+          "sourceHandle": "output",
+          "target": "GoogleGenerativeAIModel-mj24V",
+          "targetHandle": "input_value",
+          "id": "edge-checklistbuilder-model",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "OutOfScopeHandler-3P65N",
+          "sourceHandle": "output",
+          "target": "GoogleGenerativeAIModel-mj24V",
+          "targetHandle": "input_value",
+          "id": "edge-outofscope-model",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "GoogleGenerativeAIModel-mj24V",
+          "sourceHandle": "text_output",
+          "target": "SafetyFilter-5R92L",
+          "targetHandle": "response",
+          "id": "edge-model-safetyfilter",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "SafetyFilter-5R92L",
+          "sourceHandle": "result",
+          "target": "ChatOutput-XPCO0",
+          "targetHandle": "input_value",
+          "id": "edge-safetyfilter-chatoutput",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "SafetyFilter-5R92L",
+          "sourceHandle": "result",
+          "target": "FeedbackCollector-7T67M",
+          "targetHandle": "response",
+          "id": "edge-safetyfilter-feedbackcollector",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "message",
+          "target": "FeedbackCollector-7T67M",
+          "targetHandle": "query",
+          "id": "edge-chatinput-feedbackcollector",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ContextBuilder-6G90Q",
+          "sourceHandle": "output",
+          "target": "FeedbackCollector-7T67M",
+          "targetHandle": "context_used",
+          "id": "edge-contextbuilder-feedbackcollector",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "QueryRouter-4K89R",
+          "sourceHandle": "result",
+          "target": "FeedbackCollector-7T67M",
+          "targetHandle": "query_type",
+          "id": "edge-queryrouter-feedbackcollector",
+          "data": {
+            "transforms": []
+          },
+          "animated": false,
+          "className": ""
+        }
+      ],
+      "viewport": {
+        "x": -3.7670793745036235,
+        "y": -398.731678863361,
+        "zoom": 0.6594791460980356
+      }
+    },
+    "description": "Enterprise-ready AI-powered onboarding assistant with RAG capabilities",
+    "name": "SwiftStart Onboarding Assistant",
+    "last_tested_version": "1.2.0",
+    "endpoint_name": null,
+    "is_component": false
+  }
