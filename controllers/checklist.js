@@ -507,6 +507,63 @@ function createProgressBar(percentage) {
   return `\`${filled}${empty}\` ${percentage}%`;
 }
 
+/**
+ * Create checklist blocks with proper UI colors and reliable item lookup
+ * @param {string} category - Category name
+ * @param {Array} items - Items in the category
+ * @param {string} checklistId - ID of the checklist
+ * @returns {Array} - Blocks for the category
+ */
+function createCategoryBlocks(category, items, checklistId) {
+  const blocks = [];
+  
+  // Add category header context block
+  blocks.push({
+    type: "context",
+    elements: [
+      {
+        type: "mrkdwn",
+        text: "Click the buttons to mark items as complete:"
+      }
+    ]
+  });
+  
+  // Add each item with a button that follows standard UI conventions
+  for (const item of items) {
+    // Simple action ID that includes "toggle_" prefix
+    const actionId = `toggle_item_${item.id.substring(0, 8)}`;
+    
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: item.completed ? "✓" : "○", // Empty circle if not completed, checkmark if completed
+            emoji: true
+          },
+          style: item.completed ? "primary" : "danger", // Green if completed, red if not
+          value: item.id, // Store FULL item ID in the value for reliable lookup
+          action_id: actionId
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: item.text,
+            emoji: true
+          },
+          value: item.id, // Store FULL item ID here too
+          action_id: `view_${actionId}`
+        }
+      ]
+    });
+  }
+  
+  return blocks;
+}
+
 
 module.exports = {
   getChecklist,
@@ -522,5 +579,6 @@ module.exports = {
   createProgressBar,
   createInteractiveChecklistBlocks,
   generateProgressBlocks,
-  getAllChecklists
+  getAllChecklists,
+  createCategoryBlocks
 };

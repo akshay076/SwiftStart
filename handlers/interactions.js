@@ -43,21 +43,33 @@ const handleInteractions = async (req, res) => {
  * @param {Object} payload - Interaction payload
  */
 const handleBlockActions = async (payload) => {
-  const { actions, user, channel } = payload;
-  
-  for (const action of actions) {
-    console.log('Processing action:', action.action_id);
+  try {
+    const { actions, user, channel } = payload;
     
-    if (action.action_id.startsWith('tgl_')) {
-      // Handle checklist item toggle button clicks
-      await handleItemToggle(action, payload, user.id, channel.id);
-    } else if (action.action_id.startsWith('view_tgl_')) {
-      // This is just a view action, no need to do anything
-      console.log('Item text button clicked, no action needed');
-    } else if (action.action_id.startsWith('vp_')) {
-      // Handle view progress button
-      await handleViewProgress(action, payload);
+    if (!actions || !actions.length) {
+      console.error('No actions found in payload');
+      return;
     }
+    
+    console.log(`Processing ${actions.length} actions`);
+    console.log('Action IDs:', actions.map(a => a.action_id).join(', '));
+    
+    for (const action of actions) {
+      // Record detailed info about the action
+      console.log(`Action: ${action.action_id}`);
+      console.log(`- Type: ${action.type}`);
+      console.log(`- Value: ${action.value}`);
+      console.log(`- Style: ${action.style}`);
+      
+      // Handle different action types
+      if (action.action_id.startsWith('tgl_')) {
+        await handleItemToggle(action, payload, user.id, channel.id);
+      } else if (action.action_id.startsWith('view_progress_')) {
+        await handleViewProgress(action, payload);
+      }
+    }
+  } catch (error) {
+    console.error('Error in handleBlockActions:', error);
   }
 };
 
@@ -70,25 +82,38 @@ const handleBlockActions = async (payload) => {
  */
 async function handleItemToggle(action, payload, userId, channelId) {
   try {
-    console.log('Handling item toggle from button click:', action);
+    // Very verbose logging to debug the issue
+    console.log('====== TOGGLE ACTION DEBUG ======');
+    console.log('Action:', JSON.stringify(action));
+    console.log('- ActionID:', action.action_id);
+    console.log('- Value:', action.value);
     
-    // Extract item ID from action_id format: tgl_[itemId]
-    const itemIdPart = action.action_id.replace('tgl_', '');
-    
-    console.log(`Processing toggle for item with ID part: ${itemIdPart}`);
-    
-    // Find the item by ID prefix
+    // We'll check all available checklists and items
     const checklists = checklistController.getAllChecklists();
+    console.log(`Checking ${Object.keys(checklists).length} checklists`);
     
+    // Instead of trying to parse the action_id, we'll try to match against all item IDs
     let targetChecklist = null;
     let targetItem = null;
     
-    // Search through all checklists to find the matching item
+    // Log all checklist IDs for debugging
+    console.log('Available checklists:');
+    for (const [id, checklist] of Object.entries(checklists)) {
+      console.log(`- ${id}: ${checklist.role} (${checklist.items.length} items)`);
+    }
+    
+    // Find the first matching item across all checklists
     for (const checklist of Object.values(checklists)) {
       for (const item of checklist.items) {
-        if (item.id.startsWith(itemIdPart)) {
+        // For debugging, log some item info
+        console.log(`Checking item ${item.id}: "${item.text.substring(0, 20)}..." (completed: ${item.completed})`);
+        
+        // Try different ways to match the item
+        if (action.action_id.includes(item.id.substring(0, 6)) || 
+            (action.value && action.value.includes(item.id.substring(0, 6)))) {
           targetChecklist = checklist;
           targetItem = item;
+          console.log(`FOUND MATCH: ${item.id} - "${item.text}"`);
           break;
         }
       }
@@ -96,108 +121,51 @@ async function handleItemToggle(action, payload, userId, channelId) {
     }
     
     if (!targetChecklist || !targetItem) {
-      console.error('Could not find checklist or item for action:', action.action_id);
+      console.error('Could not find any matching item for this action');
+      // Instead of failing, let's try to update the UI anyway as a visual response
+      try {
+        // Send a message to acknowledge the click
+        await slackService.sendMessage(
+          channelId,
+          "I received your click, but couldn't find the associated task. Please try again or contact support."
+        );
+      } catch (msgError) {
+        console.error('Error sending acknowledgment message:', msgError);
+      }
       return;
     }
     
-    // Toggle the completion state (if it's already completed, uncomplete it)
+    // Toggle the completion state
     const isCompleted = !targetItem.completed;
+    console.log(`Setting item "${targetItem.text}" to ${isCompleted ? 'completed' : 'not completed'}`);
     
-    console.log(`Updating item ${targetItem.id} in checklist ${targetChecklist.id} to ${isCompleted ? 'completed' : 'not completed'}`);
-    
+    // Update the item in our data store
     const updated = checklistController.updateChecklistItemStatus(
       targetChecklist.id,
       targetItem.id,
       isCompleted
     );
     
+    console.log(`Item update result: ${updated}`);
+    
     if (updated) {
-      try {
-        // Find which action button was clicked
-        const clickedActionIndex = payload.actions.findIndex(a => a.action_id === action.action_id);
-        
-        if (clickedActionIndex === -1) {
-          console.error('Could not find clicked action in payload');
-          return;
-        }
-        
-        // Get updated blocks - ONLY update the specific block that contains the clicked button
-        const updatedBlocks = payload.message.blocks.map((block, blockIndex) => {
-          // Only update the actions block that contains our button
-          if (block.type === 'actions') {
-            // Check if this block contains our button
-            const hasTargetButton = block.elements.some(element => 
-              element.action_id === action.action_id
-            );
-            
-            if (hasTargetButton) {
-              // This is the block that contains our button, update it
-              const updatedElements = block.elements.map(element => {
-                if (element.action_id === action.action_id) {
-                  // Update the specific button that was clicked
-                  // Follow standard UI conventions:
-                  // - Completed tasks have GREEN buttons with a checkmark ✓
-                  // - Incomplete tasks have RED buttons with an empty circle ○
-                  return {
-                    ...element,
-                    style: isCompleted ? "primary" : "danger",  // Green if completed, Red if not
-                    text: {
-                      type: "plain_text",
-                      text: isCompleted ? "✓" : "○",  // Checkmark if completed, empty circle if not
-                      emoji: true
-                    }
-                  };
-                }
-                return element;
-              });
-              
-              return {
-                ...block,
-                elements: updatedElements
-              };
-            }
-          }
-          return block;
-        });
-        
-        // Update the message
-        const result = await axios.post('https://slack.com/api/chat.update', {
-          channel: channelId,
-          ts: payload.message.ts,
-          blocks: updatedBlocks
-        }, {
-          headers: {
-            'Authorization': `Bearer ${config.slack.botToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!result.data.ok) {
-          console.error('Failed to update message:', result.data.error);
-        } else {
-          console.log('Successfully updated message appearance');
-        }
-        
-        // Notify the manager of progress if item was completed
-        if (isCompleted) {
-          console.log('Notifying manager of progress update');
-          await notifyManagerOfProgress(targetChecklist, targetItem.id, userId);
-        }
-        
-        // Send a confirmation message to the user
-        await slackService.sendMessage(
-          channelId,
-          isCompleted 
-            ? `✅ You marked *${targetItem.text}* as complete`
-            : `⭕ You marked *${targetItem.text}* as incomplete`
-        );
-        
-      } catch (updateError) {
-        console.error('Error updating message:', updateError);
+      // Send a confirmation message to indicate the action was processed
+      await slackService.sendMessage(
+        channelId,
+        isCompleted
+          ? `✅ You marked "*${targetItem.text}*" as complete`
+          : `⭕ You marked "*${targetItem.text}*" as incomplete`
+      );
+      
+      // Notify the manager
+      if (isCompleted) {
+        console.log('Notifying manager of progress');
+        await notifyManagerOfProgress(targetChecklist, targetItem.id, userId);
       }
     }
   } catch (error) {
     console.error('Error handling item toggle:', error);
+    console.error(error.stack);
   }
 }
 

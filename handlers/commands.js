@@ -239,7 +239,7 @@ async function handleCreateChecklistCommand(payload) {
               text: "View Progress Summary",
               emoji: true
             },
-            action_id: `vp_${checklistId.substring(0, 8)}`,
+            action_id: `view_progress_${checklistId.substring(0, 8)}`,
             style: "primary"
           }]
         }];
