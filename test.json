@@ -6,8 +6,8 @@
           "data": {
             "id": "RAG-System-l92Ct",
             "node": {
-              "description": "## Enterprise-Ready SwiftStart Assistant\n\nThis flow implements governance-focused onboarding with:\n\n- Data Governance: PII detection, compliance logging\n- Responsible AI: Bias detection, fairness controls\n- Content Validation: Filter sensitive information, ensure compliance\n- Access Controls: Role-based information access",
-              "display_name": "SwiftStart Overview",
+              "description": "## Enterprise-Ready SwiftStart RAG System\n\nThis flow implements a full Retrieval Augmented Generation (RAG) system with enterprise governance controls:\n\n- Document Processing: Multiple document uploads, chunking, embedding\n- Vector Database: Storage and retrieval of document knowledge\n- Data Governance: PII detection, bias detection, access controls\n- Compliance: Content validation and audit trails\n\nThe system ensures all responses are knowledge-based, accurate, and compliant with enterprise policies.",
+              "display_name": "SwiftStart RAG Overview",
               "documentation": "",
               "template": {
                 "backgroundColor": "blue"
@@ -22,12 +22,12 @@
             "width": 325
           },
           "position": {
-            "x": 133.95771636602308,
-            "y": 753.6499167055161
+            "x": 100,
+            "y": 100
           },
           "positionAbsolute": {
-            "x": 66.38770028934243,
-            "y": 749.744424427066
+            "x": 100,
+            "y": 100
           },
           "resizing": false,
           "selected": false,
@@ -42,7 +42,7 @@
           "data": {
             "id": "note-zk2Ct",
             "node": {
-              "description": "### 💡 Add your Google API key to both model components 👇",
+              "description": "### 💡 Add your Google API key to both the LLM and Embedding model components 👇",
               "display_name": "",
               "documentation": "",
               "template": {
@@ -59,12 +59,12 @@
             "width": 326
           },
           "position": {
-            "x": 1075.829573520873,
-            "y": 657.2057655038416
+            "x": 480,
+            "y": 100
           },
           "positionAbsolute": {
-            "x": 1075.829573520873,
-            "y": 657.2057655038416
+            "x": 480,
+            "y": 100
           },
           "resizing": false,
           "selected": false,
@@ -79,8 +79,8 @@
           "id": "ChatInput-TgJla",
           "type": "genericNode",
           "position": {
-            "x": 660,
-            "y": 930
+            "x": 140,
+            "y": 400
           },
           "data": {
             "node": {
@@ -101,7 +101,7 @@
                   "display_name": "Company Documents",
                   "advanced": false,
                   "dynamic": false,
-                  "info": "Upload company documents for knowledge retrieval.",
+                  "info": "Upload company documents for knowledge retrieval. You can select multiple files.",
                   "title_case": false,
                   "type": "file",
                   "_input_type": "FileInput"
@@ -212,11 +212,464 @@
           }
         },
         {
+          "id": "DocumentLoader-KF53l",
+          "type": "genericNode",
+          "position": {
+            "x": 140,
+            "y": 580
+          },
+          "data": {
+            "node": {
+              "template": {
+                "file_path": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": false,
+                  "value": "",
+                  "name": "file_path",
+                  "display_name": "File Path",
+                  "advanced": false,
+                  "input_types": ["FileInput"],
+                  "dynamic": false,
+                  "info": "Path to the file to load",
+                  "type": "file"
+                },
+                "loader_kwargs": {
+                  "required": false,
+                  "placeholder": "{}",
+                  "show": true,
+                  "multiline": true,
+                  "value": "{}",
+                  "name": "loader_kwargs",
+                  "display_name": "Loader Arguments",
+                  "advanced": true,
+                  "dynamic": false,
+                  "info": "Arguments to pass to the loader",
+                  "type": "dict"
+                }
+              },
+              "description": "Load multiple company documents",
+              "icon": "Database",
+              "display_name": "Document Loader",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "Document"
+                  ],
+                  "selected": "Document",
+                  "name": "output",
+                  "display_name": "Documents",
+                  "method": "load_document",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "file_path",
+                "loader_kwargs"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "DocumentLoader",
+            "id": "DocumentLoader-KF53l"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "TextSplitter-RF92M",
+          "type": "genericNode",
+          "position": {
+            "x": 140,
+            "y": 730
+          },
+          "data": {
+            "node": {
+              "template": {
+                "chunk_size": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "chunk_size",
+                  "value": 1000,
+                  "display_name": "Chunk Size",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Size of chunks to split documents into",
+                  "type": "int"
+                },
+                "chunk_overlap": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "chunk_overlap",
+                  "value": 200,
+                  "display_name": "Chunk Overlap",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Overlap between chunks for context preservation",
+                  "type": "int"
+                },
+                "documents": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "documents",
+                  "value": "",
+                  "display_name": "Documents",
+                  "advanced": false,
+                  "input_types": ["Document"],
+                  "dynamic": false,
+                  "info": "Documents to split into chunks",
+                  "type": "Document"
+                }
+              },
+              "description": "Split documents into manageable chunks",
+              "icon": "Scissors",
+              "display_name": "Text Splitter",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "Document"
+                  ],
+                  "selected": "Document",
+                  "name": "output",
+                  "display_name": "Split Documents",
+                  "method": "split_documents",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "chunk_size",
+                "chunk_overlap", 
+                "documents"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "RecursiveCharacterTextSplitter",
+            "id": "TextSplitter-RF92M"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "Embeddings-J934K",
+          "type": "genericNode",
+          "position": {
+            "x": 140,
+            "y": 880
+          },
+          "data": {
+            "node": {
+              "template": {
+                "api_key": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "api_key",
+                  "value": "YOUR_GOOGLE_API_KEY_HERE",
+                  "display_name": "Google API Key",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Your API key for embeddings",
+                  "type": "str",
+                  "password": true
+                },
+                "model_name": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "model_name",
+                  "value": "embedding-001",
+                  "display_name": "Model Name",
+                  "advanced": false,
+                  "dynamic": false,
+                  "options": ["embedding-001", "embedding-002"],
+                  "info": "Embedding model to use",
+                  "type": "str"
+                },
+                "documents": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "documents",
+                  "value": "",
+                  "display_name": "Documents",
+                  "advanced": false,
+                  "input_types": ["Document"],
+                  "dynamic": false,
+                  "info": "Documents to generate embeddings for",
+                  "type": "Document"
+                }
+              },
+              "description": "Generate embeddings for document chunks",
+              "icon": "VectorPen",
+              "display_name": "Embeddings Model",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "Embeddings"
+                  ],
+                  "selected": "Embeddings",
+                  "name": "embeddings",
+                  "display_name": "Embeddings",
+                  "method": "__call__",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "api_key",
+                "model_name",
+                "documents"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "GoogleGenerativeAIEmbeddings",
+            "id": "Embeddings-J934K"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "VectorStore-9B25P",
+          "type": "genericNode",
+          "position": {
+            "x": 140,
+            "y": 1030
+          },
+          "data": {
+            "node": {
+              "template": {
+                "documents": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "documents",
+                  "value": "",
+                  "display_name": "Documents",
+                  "advanced": false,
+                  "input_types": ["Document"],
+                  "dynamic": false,
+                  "info": "Documents to store",
+                  "type": "Document"
+                },
+                "embeddings": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "embeddings",
+                  "value": "",
+                  "display_name": "Embeddings",
+                  "advanced": false,
+                  "input_types": ["Embeddings"],
+                  "dynamic": false,
+                  "info": "Embeddings model to use",
+                  "type": "Embeddings"
+                },
+                "collection_name": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "collection_name",
+                  "value": "company_docs",
+                  "display_name": "Collection Name",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Name for the document collection",
+                  "type": "str"
+                }
+              },
+              "description": "Store document embeddings for retrieval",
+              "icon": "Database",
+              "display_name": "Vector Store",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "VectorStore"
+                  ],
+                  "selected": "VectorStore",
+                  "name": "vectorstore",
+                  "display_name": "Vector Store",
+                  "method": "from_documents",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "documents",
+                "embeddings",
+                "collection_name"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "Chroma",
+            "id": "VectorStore-9B25P"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
+          "id": "Retriever-L201K",
+          "type": "genericNode",
+          "position": {
+            "x": 380,
+            "y": 880
+          },
+          "data": {
+            "node": {
+              "template": {
+                "vectorstore": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "vectorstore",
+                  "value": "",
+                  "display_name": "Vector Store",
+                  "advanced": false,
+                  "input_types": ["VectorStore"],
+                  "dynamic": false,
+                  "info": "Vector store to retrieve documents from",
+                  "type": "VectorStore"
+                },
+                "query": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "query",
+                  "value": "",
+                  "display_name": "Query",
+                  "advanced": false,
+                  "input_types": ["Message"],
+                  "dynamic": false,
+                  "info": "Query to retrieve relevant documents",
+                  "type": "str"
+                },
+                "search_type": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "search_type",
+                  "value": "similarity",
+                  "display_name": "Search Type",
+                  "advanced": false,
+                  "dynamic": false,
+                  "options": ["similarity", "mmr"],
+                  "info": "Type of search to perform",
+                  "type": "str"
+                },
+                "k": {
+                  "required": false,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "k",
+                  "value": 5,
+                  "display_name": "Number of Results",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Number of documents to retrieve",
+                  "type": "int"
+                }
+              },
+              "description": "Retrieve relevant documents for a query",
+              "icon": "Search",
+              "display_name": "Document Retriever",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "Document"
+                  ],
+                  "selected": "Document",
+                  "name": "documents",
+                  "display_name": "Retrieved Documents",
+                  "method": "get_relevant_documents",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "vectorstore",
+                "query",
+                "search_type",
+                "k"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "VectorStoreRetriever",
+            "id": "Retriever-L201K"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
           "id": "PIIDetector-3X94R",
           "type": "genericNode",
           "position": {
-            "x": 400,
-            "y": 820
+            "x": 380,
+            "y": 580
           },
           "data": {
             "node": {
@@ -293,8 +746,8 @@
           "id": "BiasDetector-7H31Q",
           "type": "genericNode",
           "position": {
-            "x": 400,
-            "y": 650
+            "x": 380,
+            "y": 430
           },
           "data": {
             "node": {
@@ -371,8 +824,8 @@
           "id": "GovernanceProcessor-4K89R",
           "type": "genericNode",
           "position": {
-            "x": 800,
-            "y": 750
+            "x": 620,
+            "y": 580
           },
           "data": {
             "node": {
@@ -383,7 +836,7 @@
                   "show": true,
                   "multiline": true,
                   "name": "script",
-                  "value": "def process_governance(pii_data, bias_data, user_query, access_level):\n    \"\"\"Process governance data and prepare enhanced controls\"\"\"\n    # Extract PII information\n    has_pii = pii_data.get('has_pii', False) if pii_data else False\n    pii_types = pii_data.get('pii_types_found', []) if pii_data else []\n    sensitivity_level = pii_data.get('sensitivity_level', 'Standard') if pii_data else 'Standard'\n    \n    # Extract bias information\n    bias_detected = bias_data.get('bias_detected', False) if bias_data else False\n    bias_types = bias_data.get('bias_types', []) if bias_data else []\n    \n    # Determine query category based on content\n    query_category = \"general\"\n    \n    if \"checklist\" in user_query.lower() or \"onboarding list\" in user_query.lower():\n        query_category = \"checklist\"\n    elif \"policy\" in user_query.lower() or \"regulation\" in user_query.lower() or \"rule\" in user_query.lower():\n        query_category = \"policy\"\n    \n    # Build governance controls\n    governance_controls = []\n    \n    # Add data minimization controls\n    governance_controls.append(\"DATA_MINIMIZATION: Only include necessary information in response\")\n    \n    # Add PII-related controls\n    if has_pii:\n        governance_controls.append(f\"PII_DETECTED: Detected {', '.join(pii_types)} - ensure no sensitive data in response\")\n    \n    # Add bias-related controls\n    if bias_detected:\n        governance_controls.append(f\"BIAS_CONTROLS: Detected {', '.join(bias_types)} - ensure fair and balanced response\")\n    \n    # Add access-level controls\n    if query_category == \"policy\" and access_level not in [\"HR Admin\", \"System Admin\"]:\n        governance_controls.append(\"ACCESS_CONTROL: Limited policy information for current access level\")\n    \n    # Common controls for all responses\n    governance_controls.append(\"ATTRIBUTION: Cite sources when referencing company policy\")\n    governance_controls.append(\"ACCOUNTABILITY: Clearly distinguish facts from recommendations\")\n    \n    # Build prompt enhancements\n    prompt_enhancements = {\n        \"query_category\": query_category,\n        \"governance_controls\": governance_controls,\n        \"sensitivity_level\": sensitivity_level,\n        \"requires_human_review\": bias_detected and len(bias_types) > 1,\n        \"governance_tags\": []\n    }\n    \n    # Add appropriate tags\n    if has_pii:\n        prompt_enhancements[\"governance_tags\"].append(\"PII-Controlled\")\n    if bias_detected:\n        prompt_enhancements[\"governance_tags\"].append(\"Bias-Controlled\")\n    if query_category == \"policy\":\n        prompt_enhancements[\"governance_tags\"].append(\"Policy-Access-Controlled\")\n    \n    # Add formatted controls text for prompt insertion\n    prompt_enhancements[\"controls_text\"] = \"\\n\".join(governance_controls)\n    \n    return prompt_enhancements",
+                  "value": "def process_governance(pii_data, bias_data, user_query, access_level, context_exists):\n    \"\"\"Process governance data and prepare enhanced controls\"\"\"\n    # Extract PII information\n    has_pii = pii_data.get('has_pii', False) if pii_data else False\n    pii_types = pii_data.get('pii_types_found', []) if pii_data else []\n    sensitivity_level = pii_data.get('sensitivity_level', 'Standard') if pii_data else 'Standard'\n    \n    # Extract bias information\n    bias_detected = bias_data.get('bias_detected', False) if bias_data else False\n    bias_types = bias_data.get('bias_types', []) if bias_data else []\n    \n    # Determine query category based on content\n    query_category = \"general\"\n    \n    if \"checklist\" in user_query.lower() or \"onboarding list\" in user_query.lower():\n        query_category = \"checklist\"\n    elif \"policy\" in user_query.lower() or \"regulation\" in user_query.lower() or \"rule\" in user_query.lower():\n        query_category = \"policy\"\n    \n    # Build governance controls\n    governance_controls = []\n    \n    # Add RAG-specific controls\n    if context_exists:\n        governance_controls.append(\"RAG_MODE: Base responses on retrieved document context\")\n    else:\n        governance_controls.append(\"NO_CONTEXT: No relevant documents found, provide general guidance\")\n    \n    # Add data minimization controls\n    governance_controls.append(\"DATA_MINIMIZATION: Only include necessary information in response\")\n    \n    # Add PII-related controls\n    if has_pii:\n        governance_controls.append(f\"PII_DETECTED: Detected {', '.join(pii_types)} - ensure no sensitive data in response\")\n    \n    # Add bias-related controls\n    if bias_detected:\n        governance_controls.append(f\"BIAS_CONTROLS: Detected {', '.join(bias_types)} - ensure fair and balanced response\")\n    \n    # Add access-level controls\n    if query_category == \"policy\" and access_level not in [\"HR Admin\", \"System Admin\"]:\n        governance_controls.append(\"ACCESS_CONTROL: Limited policy information for current access level\")\n    \n    # Common controls for all responses\n    governance_controls.append(\"ATTRIBUTION: Cite sources when referencing company policy\")\n    governance_controls.append(\"ACCOUNTABILITY: Clearly distinguish facts from recommendations\")\n    \n    # Build prompt enhancements\n    prompt_enhancements = {\n        \"query_category\": query_category,\n        \"governance_controls\": governance_controls,\n        \"sensitivity_level\": sensitivity_level,\n        \"requires_human_review\": bias_detected and len(bias_types) > 1,\n        \"governance_tags\": []\n    }\n    \n    # Add appropriate tags\n    if has_pii:\n        prompt_enhancements[\"governance_tags\"].append(\"PII-Controlled\")\n    if bias_detected:\n        prompt_enhancements[\"governance_tags\"].append(\"Bias-Controlled\")\n    if query_category == \"policy\":\n        prompt_enhancements[\"governance_tags\"].append(\"Policy-Access-Controlled\")\n    if context_exists:\n        prompt_enhancements[\"governance_tags\"].append(\"Context-Enhanced\")\n    \n    # Add formatted controls text for prompt insertion\n    prompt_enhancements[\"controls_text\"] = \"\\n\".join(governance_controls)\n    \n    return prompt_enhancements",
                   "display_name": "Governance Processing Script",
                   "advanced": false,
                   "dynamic": false,
@@ -445,6 +898,19 @@
                   "dynamic": false,
                   "info": "User access level",
                   "type": "str"
+                },
+                "context_exists": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "context_exists",
+                  "value": true,
+                  "display_name": "Context Exists",
+                  "advanced": false,
+                  "input_types": ["Document"],
+                  "dynamic": false,
+                  "info": "Whether relevant context documents exist",
+                  "type": "bool"
                 }
               },
               "description": "Process governance data and enhance prompt",
@@ -472,7 +938,8 @@
                 "pii_data",
                 "bias_data",
                 "user_query",
-                "access_level"
+                "access_level",
+                "context_exists"
               ],
               "beta": false,
               "legacy": false,
@@ -491,11 +958,88 @@
           }
         },
         {
+          "id": "ContextFormatter-Z921R",
+          "type": "genericNode",
+          "position": {
+            "x": 620,
+            "y": 730
+          },
+          "data": {
+            "node": {
+              "template": {
+                "script": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "script",
+                  "value": "def format_context(retrieved_docs):\n    \"\"\"Format retrieved documents into structured context\"\"\"\n    # Check if we have any documents\n    if not retrieved_docs:\n        return {\n            \"formatted_context\": \"No relevant company information available.\",\n            \"sources\": [],\n            \"context_exists\": False\n        }\n    \n    # Process and format the documents\n    context_parts = []\n    sources = []\n    \n    for i, doc in enumerate(retrieved_docs):\n        # Extract content and metadata\n        content = doc.page_content if hasattr(doc, 'page_content') else str(doc)\n        meta = doc.metadata if hasattr(doc, 'metadata') else {}\n        \n        # Create source identifier\n        source_name = meta.get('source', f\"Document {i+1}\")\n        if source_name not in sources:\n            sources.append(source_name)\n        \n        # Format this document's content\n        doc_text = f\"--- {source_name} ---\\n{content}\\n\"\n        context_parts.append(doc_text)\n    \n    # Combine all formatted documents\n    formatted_context = \"\\n\\n\".join(context_parts)\n    \n    return {\n        \"formatted_context\": formatted_context,\n        \"sources\": sources,\n        \"context_exists\": True\n    }",
+                  "display_name": "Context Formatting Script",
+                  "advanced": false,
+                  "dynamic": false,
+                  "info": "Script to format retrieved documents into structured context",
+                  "type": "code"
+                },
+                "retrieved_docs": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "name": "retrieved_docs",
+                  "value": "",
+                  "display_name": "Retrieved Documents",
+                  "advanced": false,
+                  "input_types": ["Document"],
+                  "dynamic": false,
+                  "info": "Documents retrieved from vector store",
+                  "type": "Document"
+                }
+              },
+              "description": "Format retrieved documents for RAG",
+              "icon": "FileText",
+              "display_name": "Context Formatter",
+              "custom_fields": {},
+              "output_types": [],
+              "outputs": [
+                {
+                  "types": [
+                    "dict"
+                  ],
+                  "selected": "dict",
+                  "name": "result",
+                  "display_name": "Formatted Context",
+                  "method": "apply_script",
+                  "value": "__UNDEFINED__",
+                  "cache": true,
+                  "allows_loop": false,
+                  "tool_mode": false
+                }
+              ],
+              "field_order": [
+                "script",
+                "retrieved_docs"
+              ],
+              "beta": false,
+              "legacy": false,
+              "edited": false,
+              "metadata": {},
+              "tool_mode": false,
+              "lf_version": "1.2.0"
+            },
+            "showNode": true,
+            "type": "PythonFunction",
+            "id": "ContextFormatter-Z921R"
+          },
+          "measured": {
+            "width": 192,
+            "height": 128
+          }
+        },
+        {
           "id": "ContextBuilder-6G90Q",
           "type": "genericNode",
           "position": {
-            "x": 1100,
-            "y": 650
+            "x": 860,
+            "y": 580
           },
           "data": {
             "node": {
@@ -506,11 +1050,25 @@
                   "show": true,
                   "multiline": true,
                   "name": "prompt_template",
-                  "value": "You are SwiftStart, an AI-powered onboarding assistant for Horizon Technologies. Your answers should follow enterprise governance standards.\n\nGOVERNANCE CONTROLS:\n{governance_controls}\n\nWhen answering questions:\n- Provide clear, concise information based on the context\n- Be welcoming and supportive in tone\n- Reference Horizon Technologies' specific practices when appropriate\n- If you don't have certain company-specific information, acknowledge this and provide general guidance\n- Suggest who the employee might contact for more details when necessary\n- Follow all governance controls listed above\n- Include sources of information where appropriate\n- Provide only factual information, clearly stating when something is your recommendation vs. company policy\n\nUser Question: {query}\n\nRemember to balance helpfulness with appropriate data governance.",
+                  "value": "You are SwiftStart, an AI-powered onboarding assistant for Horizon Technologies. Your answers should be based on the company information provided below when available.\n\nCOMPANY CONTEXT INFORMATION:\n{context}\n\nGOVERNANCE CONTROLS:\n{governance_controls}\n\nWhen answering questions:\n- Provide clear, concise information based on the context\n- Be welcoming and supportive in tone\n- Reference Horizon Technologies' specific practices when appropriate\n- If you don't have certain company-specific information, acknowledge this and provide general guidance\n- Suggest who the employee might contact for more details when necessary\n- Follow all governance controls listed above\n- Include sources of information where appropriate\n- Provide only factual information, clearly stating when something is your recommendation vs. company policy\n\nUser Question: {query}\n\nRemember to balance helpfulness with appropriate data governance.",
                   "display_name": "Question Context",
                   "advanced": false,
                   "dynamic": false,
                   "info": "Template to format retrieved context with user query",
+                  "type": "str"
+                },
+                "context": {
+                  "required": true,
+                  "placeholder": "",
+                  "show": true,
+                  "multiline": true,
+                  "name": "context",
+                  "value": "Default company information",
+                  "display_name": "Context",
+                  "advanced": false,
+                  "input_types": ["str"],
+                  "dynamic": false,
+                  "info": "Company documents context",
                   "type": "str"
                 },
                 "query": {
@@ -536,7 +1094,7 @@
                   "value": "DATA_MINIMIZATION: Only include necessary information",
                   "display_name": "Governance Controls",
                   "advanced": false,
-                  "input_types": ["dict"],
+                  "input_types": ["str"],
                   "dynamic": false,
                   "info": "Governance controls to apply",
                   "type": "str"
@@ -564,6 +1122,7 @@
               ],
               "field_order": [
                 "prompt_template",
+                "context",
                 "query",
                 "governance_controls"
               ],
@@ -587,8 +1146,8 @@
           "id": "GoogleGenerativeAIModel-mj24V",
           "type": "genericNode",
           "position": {
-            "x": 1350,
-            "y": 750
+            "x": 1100,
+            "y": 580
           },
           "data": {
             "node": {
@@ -800,8 +1359,8 @@
           "id": "ContentValidator-5R92L",
           "type": "genericNode",
           "position": {
-            "x": 1650,
-            "y": 750
+            "x": 1350,
+            "y": 580
           },
           "data": {
             "node": {
@@ -893,8 +1452,8 @@
           "id": "ChatOutput-XPCO0",
           "type": "genericNode",
           "position": {
-            "x": 1900,
-            "y": 750
+            "x": 1600,
+            "y": 580
           },
           "data": {
             "node": {
@@ -1019,6 +1578,195 @@
       "edges": [
         {
           "source": "ChatInput-TgJla",
+          "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-TgJlaœ,œnameœ:œfilesœ,œoutput_typesœ:[œFileœ]}",
+          "target": "DocumentLoader-KF53l",
+          "targetHandle": "{œfieldNameœ:œfile_pathœ,œidœ:œDocumentLoader-KF53lœ,œinputTypesœ:[œFileInputœ],œtypeœ:œfileœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "file_path",
+              "id": "DocumentLoader-KF53l",
+              "inputTypes": [
+                "FileInput"
+              ],
+              "type": "file"
+            },
+            "sourceHandle": {
+              "dataType": "ChatInput",
+              "id": "ChatInput-TgJla",
+              "name": "files",
+              "output_types": [
+                "File"
+              ]
+            }
+          },
+          "id": "edge1",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "DocumentLoader-KF53l",
+          "sourceHandle": "{œdataTypeœ:œDocumentLoaderœ,œidœ:œDocumentLoader-KF53lœ,œnameœ:œoutputœ,œoutput_typesœ:[œDocumentœ]}",
+          "target": "TextSplitter-RF92M",
+          "targetHandle": "{œfieldNameœ:œdocumentsœ,œidœ:œTextSplitter-RF92Mœ,œinputTypesœ:[œDocumentœ],œtypeœ:œDocumentœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "documents",
+              "id": "TextSplitter-RF92M",
+              "inputTypes": [
+                "Document"
+              ],
+              "type": "Document"
+            },
+            "sourceHandle": {
+              "dataType": "DocumentLoader",
+              "id": "DocumentLoader-KF53l",
+              "name": "output",
+              "output_types": [
+                "Document"
+              ]
+            }
+          },
+          "id": "edge2",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "TextSplitter-RF92M",
+          "sourceHandle": "{œdataTypeœ:œRecursiveCharacterTextSplitterœ,œidœ:œTextSplitter-RF92Mœ,œnameœ:œoutputœ,œoutput_typesœ:[œDocumentœ]}",
+          "target": "Embeddings-J934K",
+          "targetHandle": "{œfieldNameœ:œdocumentsœ,œidœ:œEmbeddings-J934Kœ,œinputTypesœ:[œDocumentœ],œtypeœ:œDocumentœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "documents",
+              "id": "Embeddings-J934K",
+              "inputTypes": [
+                "Document"
+              ],
+              "type": "Document"
+            },
+            "sourceHandle": {
+              "dataType": "RecursiveCharacterTextSplitter",
+              "id": "TextSplitter-RF92M",
+              "name": "output",
+              "output_types": [
+                "Document"
+              ]
+            }
+          },
+          "id": "edge3",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "TextSplitter-RF92M",
+          "sourceHandle": "{œdataTypeœ:œRecursiveCharacterTextSplitterœ,œidœ:œTextSplitter-RF92Mœ,œnameœ:œoutputœ,œoutput_typesœ:[œDocumentœ]}",
+          "target": "VectorStore-9B25P",
+          "targetHandle": "{œfieldNameœ:œdocumentsœ,œidœ:œVectorStore-9B25Pœ,œinputTypesœ:[œDocumentœ],œtypeœ:œDocumentœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "documents",
+              "id": "VectorStore-9B25P",
+              "inputTypes": [
+                "Document"
+              ],
+              "type": "Document"
+            },
+            "sourceHandle": {
+              "dataType": "RecursiveCharacterTextSplitter",
+              "id": "TextSplitter-RF92M",
+              "name": "output",
+              "output_types": [
+                "Document"
+              ]
+            }
+          },
+          "id": "edge4",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Embeddings-J934K",
+          "sourceHandle": "{œdataTypeœ:œGoogleGenerativeAIEmbeddingsœ,œidœ:œEmbeddings-J934Kœ,œnameœ:œembeddingsœ,œoutput_typesœ:[œEmbeddingsœ]}",
+          "target": "VectorStore-9B25P",
+          "targetHandle": "{œfieldNameœ:œembeddingsœ,œidœ:œVectorStore-9B25Pœ,œinputTypesœ:[œEmbeddingsœ],œtypeœ:œEmbeddingsœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "embeddings",
+              "id": "VectorStore-9B25P",
+              "inputTypes": [
+                "Embeddings"
+              ],
+              "type": "Embeddings"
+            },
+            "sourceHandle": {
+              "dataType": "GoogleGenerativeAIEmbeddings",
+              "id": "Embeddings-J934K",
+              "name": "embeddings",
+              "output_types": [
+                "Embeddings"
+              ]
+            }
+          },
+          "id": "edge5",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "VectorStore-9B25P",
+          "sourceHandle": "{œdataTypeœ:œChromaœ,œidœ:œVectorStore-9B25Pœ,œnameœ:œvectorstoreœ,œoutput_typesœ:[œVectorStoreœ]}",
+          "target": "Retriever-L201K",
+          "targetHandle": "{œfieldNameœ:œvectorstoreœ,œidœ:œRetriever-L201Kœ,œinputTypesœ:[œVectorStoreœ],œtypeœ:œVectorStoreœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "vectorstore",
+              "id": "Retriever-L201K",
+              "inputTypes": [
+                "VectorStore"
+              ],
+              "type": "VectorStore"
+            },
+            "sourceHandle": {
+              "dataType": "Chroma",
+              "id": "VectorStore-9B25P",
+              "name": "vectorstore",
+              "output_types": [
+                "VectorStore"
+              ]
+            }
+          },
+          "id": "edge6",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
+          "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-TgJlaœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+          "target": "Retriever-L201K",
+          "targetHandle": "{œfieldNameœ:œqueryœ,œidœ:œRetriever-L201Kœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "query",
+              "id": "Retriever-L201K",
+              "inputTypes": [
+                "Message"
+              ],
+              "type": "str"
+            },
+            "sourceHandle": {
+              "dataType": "ChatInput",
+              "id": "ChatInput-TgJla",
+              "name": "message",
+              "output_types": [
+                "Message"
+              ]
+            }
+          },
+          "id": "edge7",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ChatInput-TgJla",
           "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-TgJlaœ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
           "target": "PIIDetector-3X94R",
           "targetHandle": "{œfieldNameœ:œtext_contentœ,œidœ:œPIIDetector-3X94Rœ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
@@ -1040,7 +1788,7 @@
               ]
             }
           },
-          "id": "edge1",
+          "id": "edge8",
           "animated": false,
           "className": ""
         },
@@ -1067,7 +1815,34 @@
               ]
             }
           },
-          "id": "edge2",
+          "id": "edge9",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Retriever-L201K",
+          "sourceHandle": "{œdataTypeœ:œVectorStoreRetrieverœ,œidœ:œRetriever-L201Kœ,œnameœ:œdocumentsœ,œoutput_typesœ:[œDocumentœ]}",
+          "target": "ContextFormatter-Z921R",
+          "targetHandle": "{œfieldNameœ:œretrieved_docsœ,œidœ:œContextFormatter-Z921Rœ,œinputTypesœ:[œDocumentœ],œtypeœ:œDocumentœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "retrieved_docs",
+              "id": "ContextFormatter-Z921R",
+              "inputTypes": [
+                "Document"
+              ],
+              "type": "Document"
+            },
+            "sourceHandle": {
+              "dataType": "VectorStoreRetriever",
+              "id": "Retriever-L201K",
+              "name": "documents",
+              "output_types": [
+                "Document"
+              ]
+            }
+          },
+          "id": "edge10",
           "animated": false,
           "className": ""
         },
@@ -1094,7 +1869,7 @@
               ]
             }
           },
-          "id": "edge3",
+          "id": "edge11",
           "animated": false,
           "className": ""
         },
@@ -1121,7 +1896,7 @@
               ]
             }
           },
-          "id": "edge4",
+          "id": "edge12",
           "animated": false,
           "className": ""
         },
@@ -1148,7 +1923,7 @@
               ]
             }
           },
-          "id": "edge5",
+          "id": "edge13",
           "animated": false,
           "className": ""
         },
@@ -1175,7 +1950,61 @@
               ]
             }
           },
-          "id": "edge6",
+          "id": "edge14",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "Retriever-L201K",
+          "sourceHandle": "{œdataTypeœ:œVectorStoreRetrieverœ,œidœ:œRetriever-L201Kœ,œnameœ:œdocumentsœ,œoutput_typesœ:[œDocumentœ]}",
+          "target": "GovernanceProcessor-4K89R",
+          "targetHandle": "{œfieldNameœ:œcontext_existsœ,œidœ:œGovernanceProcessor-4K89Rœ,œinputTypesœ:[œDocumentœ],œtypeœ:œboolœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "context_exists",
+              "id": "GovernanceProcessor-4K89R",
+              "inputTypes": [
+                "Document"
+              ],
+              "type": "bool"
+            },
+            "sourceHandle": {
+              "dataType": "VectorStoreRetriever",
+              "id": "Retriever-L201K",
+              "name": "documents",
+              "output_types": [
+                "Document"
+              ]
+            }
+          },
+          "id": "edge15",
+          "animated": false,
+          "className": ""
+        },
+        {
+          "source": "ContextFormatter-Z921R",
+          "sourceHandle": "{œdataTypeœ:œPythonFunctionœ,œidœ:œContextFormatter-Z921Rœ,œnameœ:œresultœ,œoutput_typesœ:[œdictœ]}",
+          "target": "ContextBuilder-6G90Q",
+          "targetHandle": "{œfieldNameœ:œcontextœ,œidœ:œContextBuilder-6G90Qœ,œinputTypesœ:[œstrœ],œtypeœ:œstrœ}",
+          "data": {
+            "targetHandle": {
+              "fieldName": "context",
+              "id": "ContextBuilder-6G90Q",
+              "inputTypes": [
+                "str"
+              ],
+              "type": "str"
+            },
+            "sourceHandle": {
+              "dataType": "PythonFunction",
+              "id": "ContextFormatter-Z921R",
+              "name": "result",
+              "output_types": [
+                "dict"
+              ]
+            }
+          },
+          "id": "edge16",
           "animated": false,
           "className": ""
         },
@@ -1183,13 +2012,13 @@
           "source": "GovernanceProcessor-4K89R",
           "sourceHandle": "{œdataTypeœ:œPythonFunctionœ,œidœ:œGovernanceProcessor-4K89Rœ,œnameœ:œresultœ,œoutput_typesœ:[œdictœ]}",
           "target": "ContextBuilder-6G90Q",
-          "targetHandle": "{œfieldNameœ:œgovernance_controlsœ,œidœ:œContextBuilder-6G90Qœ,œinputTypesœ:[œdictœ],œtypeœ:œstrœ}",
+          "targetHandle": "{œfieldNameœ:œgovernance_controlsœ,œidœ:œContextBuilder-6G90Qœ,œinputTypesœ:[œstrœ],œtypeœ:œstrœ}",
           "data": {
             "targetHandle": {
               "fieldName": "governance_controls",
               "id": "ContextBuilder-6G90Q",
               "inputTypes": [
-                "dict"
+                "str"
               ],
               "type": "str"
             },
@@ -1202,7 +2031,7 @@
               ]
             }
           },
-          "id": "edge7",
+          "id": "edge17",
           "animated": false,
           "className": ""
         },
@@ -1229,7 +2058,7 @@
               ]
             }
           },
-          "id": "edge8",
+          "id": "edge18",
           "animated": false,
           "className": ""
         },
@@ -1256,7 +2085,7 @@
               ]
             }
           },
-          "id": "edge9",
+          "id": "edge19",
           "animated": false,
           "className": ""
         },
@@ -1283,7 +2112,7 @@
               ]
             }
           },
-          "id": "edge10",
+          "id": "edge20",
           "animated": false,
           "className": ""
         },
@@ -1310,7 +2139,7 @@
               ]
             }
           },
-          "id": "edge11",
+          "id": "edge21",
           "animated": false,
           "className": ""
         },
@@ -1340,7 +2169,7 @@
               ]
             }
           },
-          "id": "edge12",
+          "id": "edge22",
           "animated": false,
           "className": ""
         }
@@ -1351,8 +2180,8 @@
         "zoom": 0.6594791460980356
       }
     },
-    "description": "Enterprise-ready AI-powered onboarding assistant with data governance and responsible AI principles",
-    "name": "SwiftStart Enterprise Onboarding Assistant",
+    "description": "Enterprise-ready AI-powered onboarding assistant with RAG capabilities and governance controls",
+    "name": "SwiftStart Enterprise RAG Assistant",
     "last_tested_version": "1.2.0",
     "endpoint_name": null,
     "is_component": false
