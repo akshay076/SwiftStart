@@ -38,6 +38,7 @@ async function queryLangflow(message) {
           'Authorization': `Bearer ${apiToken}`
         },
         timeout: 600000 // 25 second timeout to prevent hanging indefinitely
+
       }
     );
 
