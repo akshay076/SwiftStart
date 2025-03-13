@@ -600,7 +600,7 @@
                   "placeholder": "",
                   "show": true,
                   "name": "api_key",
-                  "value": "YOUR_GOOGLE_API_KEY_HERE",
+                  "value": "AIzaSyBdYcTrkV4RYC1wE_-N8ZGVsOyeOaTDBjo",
                   "display_name": "Google API Key",
                   "advanced": false,
                   "input_types": [
