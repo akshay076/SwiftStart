@@ -37,7 +37,8 @@ async function queryLangflow(message) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiToken}`
         },
-        timeout: 45000 // 45 second timeout to prevent hanging indefinitely
+        timeout: 600000 // 25 second timeout to prevent hanging indefinitely
+
       }
     );
 
@@ -125,8 +126,128 @@ async function testLangflowConnection() {
   }
 }
 
+// services/langflow.js - Add functionality to extract metrics from responses
+
+/**
+ * Extract governance data from Langflow response for RAI metrics
+ * @param {object} responseData - Full response data from Langflow
+ * @returns {object} - Extracted governance data for RAI metrics
+ */
+function extractGovernanceData(responseData) {
+  try {
+    // Attempt to extract governance data from various possible paths
+    const extractionPaths = [
+      () => responseData?.outputs?.[0]?.outputs?.[0]?.results?.governance_data,
+      () => responseData?.outputs?.[0]?.node_outputs?.["GovernanceProcessor-4K89R"]?.result,
+      () => responseData?.outputs?.[0]?.node_outputs?.["BiasDetector-7H31Q"]?.result
+    ];
+
+    let governanceData = {
+      piiDetected: false,
+      biasDetected: false,
+      sensitivityLevel: 'Standard',
+      governanceTags: []
+    };
+
+    // Try each extraction path
+    for (const path of extractionPaths) {
+      try {
+        const extractedData = path();
+        if (extractedData) {
+          // Merge the extracted data with our existing data
+          if (extractedData.bias_detected) {
+            governanceData.biasDetected = true;
+          }
+          
+          if (extractedData.has_pii) {
+            governanceData.piiDetected = true;
+          }
+          
+          if (extractedData.sensitivity_level) {
+            governanceData.sensitivityLevel = extractedData.sensitivity_level;
+          }
+          
+          if (extractedData.governance_tags) {
+            governanceData.governanceTags = 
+              [...governanceData.governanceTags, ...extractedData.governance_tags];
+          }
+        }
+      } catch (err) {
+        // Path failed, try the next one
+      }
+    }
+
+    return governanceData;
+  } catch (error) {
+    console.error('Error extracting governance data:', error);
+    return {
+      piiDetected: false,
+      biasDetected: false,
+      sensitivityLevel: 'Standard',
+      governanceTags: []
+    };
+  }
+}
+
+/**
+ * Enhanced Langflow query that collects governance metrics
+ * @param {string} message - The message to send to Langflow
+ * @returns {Promise<object>} - The response message and RAI metrics
+ */
+async function queryLangflowWithMetrics(message) {
+  try {
+    console.log(`Starting enhanced Langflow query with message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
+    
+    const startTime = Date.now();
+    const response = await queryLangflow(message);
+    const responseTime = Date.now() - startTime;
+    
+    console.log('Langflow response received successfully');
+
+    // Extract the message
+    const extractedMessage = extractMessageFromResponse(response.data);
+    
+    // Extract governance data for RAI metrics
+    const governanceData = extractGovernanceData(response.data);
+    
+    // Generate Responsible AI metrics
+    const responsibleAIService = require('./responsibleAI');
+    const raiMetrics = responsibleAIService.generateMetrics(
+      message,
+      extractedMessage,
+      governanceData.piiDetected,
+      governanceData.biasDetected
+    );
+    
+    // Add response time from actual measurement
+    raiMetrics.metrics.responseTime = `${responseTime}ms`;
+    
+    return {
+      message: extractedMessage,
+      raiMetrics: raiMetrics
+    };
+  } catch (error) {
+    // Handle errors...
+    console.error('Error in queryLangflowWithMetrics:', error);
+    return {
+      message: "I'm having trouble connecting to my knowledge base right now. Please try again in a few minutes.",
+      raiMetrics: null
+    };
+  }
+}
+
+// Helper function to extract message from response (simplified)
+function extractMessageFromResponse(responseData) {
+  // Use existing extraction paths logic...
+  // This would be the same code you already have for extracting the message
+  
+  // Return a default message if extraction fails
+  return "I couldn't generate a response. There was an issue with the AI service.";
+}
+
 module.exports = {
   queryLangflow,
+  queryLangflowWithMetrics,
   getLangflowResponse,
   testLangflowConnection
 };

@@ -1,6 +1,7 @@
 // handlers/events.js
 const slackService = require('../services/slack');
 const config = require('../config');
+const checklistController = require('../controllers/checklist');
 
 /**
  * Handle Slack Events
@@ -129,6 +130,9 @@ async function handleDirectMessage(event) {
       );
       return;
     }
+
+    // Check if user is a manager for RAI metrics display
+    const isManager = await checklistController.isUserManager(user);
     
     // Send a "thinking" message
     await slackService.sendMessage(
@@ -138,9 +142,52 @@ async function handleDirectMessage(event) {
     
     // Process the DM as a question
     const langflowService = require('../services/langflow');
-    const response = await langflowService.queryLangflow(text);
+    const responsibleAIService = require('../services/responsibleAI');
+
+    let response;
+    let raiMetrics = null;
+
+    try {
+      if (typeof langflowService.queryLangflowWithMetrics === 'function') {
+        // Use enhanced query with metrics if available
+        const result = await langflowService.queryLangflowWithMetrics(text);
+        response = result.message;
+        raiMetrics = result.raiMetrics;
+      } else {
+        // Fall back to standard query
+        response = await langflowService.queryLangflow(text);
+        
+        // Generate basic metrics
+        const isPIIDetected = text.toLowerCase().includes('personal') || 
+                              text.toLowerCase().includes('private') || 
+                              text.toLowerCase().includes('information');
+        
+        const isBiasDetected = text.toLowerCase().includes('gender') || 
+                               text.toLowerCase().includes('age') || 
+                               text.toLowerCase().includes('race');
+        
+        raiMetrics = responsibleAIService.generateMetrics(
+          text,
+          response,
+          isPIIDetected,
+          isBiasDetected
+        );
+      }
+      // Send response with RAI metrics for managers
+      if (isManager && raiMetrics) {
+        await slackService.sendMessageWithRAI(channel, response, raiMetrics, true);
+      } else {
+        await slackService.sendMessage(channel, response);
+      }
+      
+    } catch (queryError) {
+      console.error('Error querying Langflow:', queryError);
+      await slackService.sendMessage(
+        channel,
+        "I'm sorry, but I couldn't get a response from my knowledge base. Please try again in a few minutes."
+      );
+    }
     
-    await slackService.sendMessage(channel, response);
   } catch (error) {
     console.error('Error handling direct message:', error);
     // Try to notify the user of the error

@@ -7,7 +7,7 @@ const config = {
     url: process.env.LANGFLOW_URL,
     flowId: process.env.LANGFLOW_FLOW_ID,
     apiToken: process.env.LANGFLOW_API_TOKEN,
-    fullEndpoint: 'https://api.langflow.astra.datastax.com/lf/ca17e67e-e893-437b-b9d6-8a58f6b0eda4/api/v1/run/',
+    fullEndpoint: `${process.env.LANGFLOW_URL}/api/v1/run/`,
   },
   slack: {
     botToken: process.env.SLACK_BOT_TOKEN,

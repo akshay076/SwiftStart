@@ -3,6 +3,7 @@ const langflowService = require('../services/langflow');
 const slackService = require('../services/slack');
 const config = require('../config');
 const helpers = require('../utils/helpers');
+const responsibleAIService = require('../services/responsibleAI');
 
 // In-memory storage for checklists (replace with a database in production)
 const checklistsStore = {};
@@ -11,21 +12,80 @@ const checklistsStore = {};
  * Get a checklist for a specific role
  * @param {string} role - The role to get a checklist for
  * @returns {Promise<string>} - The checklist text
+ * @returns {Promise<object>} - The checklist text and RAI metrics
  */
 async function getChecklist(role) {
   // Normalize the role name (remove spaces, lowercase)
+  const isManager = await isUserManager(userId);
   const normalizedRole = role.toLowerCase().replace(/\s+/g, '-');
+
+  let checklistText;
+  let raiMetrics = null;
   
   // Check if it's a valid role
   if (config.validRoles.includes(normalizedRole)) {
     // Query Langflow with the role to get a dynamically generated checklist
     const query = `Get me the onboarding checklist for a ${role} role`;
-    return await langflowService.queryLangflow(query);
+    try {
+      // Try to use enhanced query with metrics if available
+      if (typeof langflowService.queryLangflowWithMetrics === 'function') {
+        const result = await langflowService.queryLangflowWithMetrics(query);
+        checklistText = result.message;
+        raiMetrics = result.raiMetrics;
+      } else {
+        // Fall back to standard query
+        checklistText = await langflowService.queryLangflow(query);
+        
+        // Generate simulated metrics for demonstration
+        const isPIIDetected = false; // Checklists generally don't contain PII
+        const isBiasDetected = false;
+        
+        if (isManager && raiConfig.enabled) {
+          raiMetrics = responsibleAIService.generateMetrics(
+            query,
+            checklistText,
+            isPIIDetected,
+            isBiasDetected
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error getting checklist with metrics:', error);
+      checklistText = "Sorry, I couldn't generate a checklist at this time.";
+    }
   } else {
     // For unknown roles, return the general checklist
     const query = `Get me the general onboarding checklist`;
-    return await langflowService.queryLangflow(query);
+    try {
+      // Try to use enhanced query with metrics if available
+      if (typeof langflowService.queryLangflowWithMetrics === 'function') {
+        const result = await langflowService.queryLangflowWithMetrics(query);
+        checklistText = result.message;
+        raiMetrics = result.raiMetrics;
+      } else {
+        // Fall back to standard query
+        checklistText = await langflowService.queryLangflow(query);
+        
+        if (isManager && raiConfig.enabled) {
+          // Generate simulated metrics for demonstration
+          raiMetrics = responsibleAIService.generateMetrics(
+            query,
+            checklistText,
+            false,
+            false
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error getting general checklist with metrics:', error);
+      checklistText = "Sorry, I couldn't generate a checklist at this time.";
+    }
   }
+
+  return {
+    text: checklistText,
+    raiMetrics: isManager && raiConfig.enabled ? raiMetrics : null
+  };
 }
 
 /**
@@ -598,6 +658,41 @@ function createCategoryBlocks(category, items, checklistId) {
   return blocks;
 }
 
+/**
+ * Create checklist blocks with RAI metrics for managers
+ * @param {string} category - Category name
+ * @param {Array} items - Items in the category
+ * @param {string} checklistId - ID of the checklist
+ * @param {object} raiMetrics - RAI metrics to include (for managers only)
+ * @returns {Array} - Blocks for the category
+ */
+function createCategoryBlocksWithRAI(category, items, checklistId, raiMetrics = null) {
+  // Start with basic blocks
+  const blocks = createCategoryBlocks(category, items, checklistId);
+  
+  // If no RAI metrics or not configured to show them, return basic blocks
+  if (!raiMetrics || !raiConfig.enabled) {
+    return blocks;
+  }
+  
+  // Add RAI metrics at the end
+  const raiText = responsibleAIService.formatMetricsForSlack(raiMetrics);
+  
+  blocks.push({
+    type: "divider"
+  });
+  
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: raiText
+    }
+  });
+  
+  return blocks;
+}
+
 
 module.exports = {
   getChecklist,
@@ -614,5 +709,6 @@ module.exports = {
   createInteractiveChecklistBlocks,
   generateProgressBlocks,
   getAllChecklists,
-  createCategoryBlocks
+  createCategoryBlocks,
+  createCategoryBlocksWithRAI
 };

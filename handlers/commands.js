@@ -43,6 +43,15 @@ function handleCommands(req, res) {
       // Process the command asynchronously
       handleCheckProgressCommand(payload);
     }
+    else if (command === '/rai-dashboard') {
+      res.status(200).send({
+        response_type: 'in_channel',
+        text: 'Generating Responsible AI dashboard...'
+      });
+      
+      // Process the command asynchronously
+      handleRAIDashboardCommand(payload);
+    }
     else {
       // Unknown command - respond immediately
       res.status(200).send({
@@ -71,6 +80,9 @@ async function handleAskBuddyCommand(payload) {
   
   try {
     console.log(`Processing askbuddy command with text: "${text}"`);
+
+    // Check if user is a manager for RAI metrics display
+    const isManager = await checklistController.isUserManager(user_id);
     
     // Special command to check if user is a manager - for testing purposes
     if (text.toLowerCase().trim() === 'am i a manager' || 
@@ -81,7 +93,8 @@ async function handleAskBuddyCommand(payload) {
       if (isManager) {
         await slackService.sendMessage(channel_id, 
           "✅ Yes, you are recognized as a manager based on your Slack profile title. " +
-          "You can use manager-only commands like `/create-checklist` and `/check-progress`."
+          "You can use manager-only commands like `/create-checklist` and `/check-progress`. " +
+          "As a manager, you will also see responsible AI metrics in responses to help you understand how the AI is performing."
         );
       } else {
         const userInfo = await slackService.getUserInfo(user_id);
@@ -99,18 +112,49 @@ async function handleAskBuddyCommand(payload) {
     
     // Regular askbuddy command - get answer from Langflow
     let answer;
+    let isPIIDetected = false;
+    let isBiasDetected = false;
+
     try {
       console.log("Querying Langflow...");
       answer = await langflowService.queryLangflow(text);
+
+      // For demonstration purposes, we'll simulate PII/bias detection
+      // In a real implementation, these would come from the actual Langflow response
+      isPIIDetected = text.toLowerCase().includes('personal') || 
+                     text.toLowerCase().includes('private') || 
+                     text.toLowerCase().includes('information');
+      
+      isBiasDetected = text.toLowerCase().includes('gender') || 
+                      text.toLowerCase().includes('age') || 
+                      text.toLowerCase().includes('race');
+      
       console.log("Received response from Langflow");
     } catch (error) {
       console.error("Error querying Langflow:", error);
       answer = "I'm sorry, but I couldn't get a response in time. The AI service might be experiencing high load. Please try again in a few minutes.";
     }
+
+    // Generate Responsible AI metrics
+    const responsibleAIService = require('../services/responsibleAI');
+    const raiMetrics = responsibleAIService.generateMetrics(
+      text,
+      answer,
+      isPIIDetected,
+      isBiasDetected
+    );
     
-    // Send the response back to Slack
+    // Send the response back to Slack with metrics for managers
     console.log("Sending final answer to Slack");
-    await slackService.sendMessage(channel_id, answer);
+
+    if (isManager) {
+      // For managers, include the RAI metrics
+      await slackService.sendMessageWithRAI(channel_id, answer, raiMetrics, true);
+    } else {
+      // For regular users, just send the answer
+      await slackService.sendMessage(channel_id, answer);
+    }
+
     console.log("Final answer sent to Slack");
   } catch (error) {
     console.error('Error processing askbuddy command:', error);
@@ -611,9 +655,171 @@ async function showChecklistProgress(checklist, channelId) {
   }
 }
 
+/**
+ * Handle the /rai-dashboard command (manager-only)
+ * @param {object} payload - The Slack command payload
+ * @returns {Promise<void>}
+ */
+async function handleRAIDashboardCommand(payload) {
+  const { text, user_id, channel_id } = payload;
+  
+  try {
+    // Verify the user is a manager - strict check
+    const isManager = await checklistController.isUserManager(user_id);
+    
+    if (!isManager) {
+      return await slackService.sendMessage(channel_id, 
+        "Sorry, only managers can access the Responsible AI dashboard. " +
+        "To be recognized as a manager, please update your Slack profile title to include terms like 'manager', 'director', or 'lead'."
+      );
+    }
+    
+    // Generate a simple dashboard
+    const blocks = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "🧠 Responsible AI Dashboard",
+          emoji: true
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "This dashboard provides insights into the AI assistant's performance and compliance metrics."
+        }
+      },
+      {
+        type: "divider"
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*📈 AI Performance Summary*"
+        }
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*Average Response Time:*\n2.3 seconds"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Average Confidence Score:*\n83.7%"
+          }
+        ]
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*Total Questions Processed:*\n247"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Checklists Generated:*\n18"
+          }
+        ]
+      },
+      {
+        type: "divider"
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*🛡️ Governance Metrics*"
+        }
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*PII Detection Events:*\n3"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Bias Mitigation Events:*\n5"
+          }
+        ]
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*Sensitive Terms Detected:*\n9"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Policy Access Controls Applied:*\n12"
+          }
+        ]
+      },
+      {
+        type: "divider"
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*👥 User Engagement*"
+        }
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*Most Active Users:*\n1. <@user1>\n2. <@user2>\n3. <@user3>"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Top Onboarding Roles:*\n1. Software Engineer\n2. Sales Representative\n3. Product Manager"
+          }
+        ]
+      },
+      {
+        type: "divider"
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "This dashboard uses simulated metrics for demonstration purposes."
+          }
+        ]
+      }
+    ];
+    
+    // Send the dashboard
+    await slackService.sendMessageWithBlocks(
+      channel_id,
+      "Responsible AI Dashboard",
+      blocks
+    );
+    
+  } catch (error) {
+    console.error('Error displaying RAI dashboard:', error);
+    await slackService.sendMessage(
+      channel_id,
+      "Sorry, I encountered an error while generating the dashboard. Please try again."
+    );
+  }
+}
+
 module.exports = {
   handleAskBuddyCommand,
   handleCreateChecklistCommand,
   handleCheckProgressCommand,
+  handleRAIDashboardCommand,
   handleCommands
 };

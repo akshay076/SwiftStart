@@ -6,6 +6,8 @@ const config = require('../config');
  * Send a message to a Slack channel
  * @param {string} channelId - The ID of the channel to send to
  * @param {string} message - The message to send
+ * @param {object} raiMetrics - Optional responsible AI metrics to append (for managers only)
+ * @param {boolean} isManager - Whether the user is a manager
  * @returns {Promise<object>} - The Slack API response
  */
 async function sendMessage(channelId, message) {
@@ -33,6 +35,54 @@ async function sendMessage(channelId, message) {
     return response.data;
   } catch (error) {
     console.error('Error sending Slack message:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Send a message with responsibleAI metrics to a Slack channel
+ * @param {string} channelId - The ID of the channel to send to
+ * @param {string} message - The message to send
+ * @param {object} raiMetrics - Optional responsible AI metrics to append (for managers only)
+ * @param {boolean} isManager - Whether the user is a manager
+ * @returns {Promise<object>} - The Slack API response
+ */
+async function sendMessageWithRAI(channelId, message, raiMetrics = null, isManager = false) {
+  try {
+    console.log(`Sending message with RAI metrics to Slack channel ${channelId}`);
+    
+    // Ensure message is never empty (Slack requires non-empty text)
+    const safeMessage = message || " "; // Use invisible character if empty
+    
+    // Only append metrics for managers
+    let finalMessage = safeMessage;
+    
+    if (raiMetrics && isManager) {
+      const responsibleAIService = require('./responsibleAI');
+      const metricsText = responsibleAIService.formatMetricsForSlack(raiMetrics);
+      
+      // Add a separator and append the metrics
+      finalMessage = `${safeMessage}\n\n---\n${metricsText}`;
+    }
+    
+    const response = await axios.post('https://slack.com/api/chat.postMessage', {
+      channel: channelId,
+      text: finalMessage
+    }, {
+      headers: {
+        'Authorization': `Bearer ${config.slack.botToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.data.ok) {
+      console.error('Slack API error:', response.data.error);
+      throw new Error(`Slack API error: ${response.data.error}`);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error sending Slack message with RAI metrics:', error.message);
     throw error;
   }
 }
@@ -138,6 +188,61 @@ async function sendMessageWithBlocks(channelId, fallbackText, blocks) {
       return await sendMessage(channelId, `${fallbackText} (Note: Could not display rich content due to an error)`);
     } catch (fallbackError) {
       console.error('Error sending fallback message:', fallbackError);
+      throw error; // Throw the original error
+    }
+  }
+}
+
+/**
+ * Send a message with blocks and responsibleAI metrics to a Slack channel
+ * @param {string} channelId - The ID of the channel to send to
+ * @param {string} fallbackText - Fallback text for notifications
+ * @param {Array} blocks - The Slack blocks to send
+ * @param {object} raiMetrics - Optional responsible AI metrics to append (for managers only)
+ * @param {boolean} isManager - Whether the user is a manager
+ * @returns {Promise<object>} - The Slack API response
+ */
+async function sendMessageWithBlocksAndRAI(channelId, fallbackText, blocks, raiMetrics = null, isManager = false) {
+  try {
+    console.log(`Sending blocks with RAI metrics to Slack channel ${channelId}`);
+    
+    // Ensure fallbackText is never empty (Slack requires non-empty text)
+    const safeFallbackText = fallbackText || "Message with blocks";
+    
+    // If not a manager or no metrics, just send the regular blocks
+    if (!raiMetrics || !isManager) {
+      return await sendMessageWithBlocks(channelId, safeFallbackText, blocks);
+    }
+    
+    // For managers with metrics, add RAI metrics section at the end
+    const responsibleAIService = require('./responsibleAI');
+    const metricsText = responsibleAIService.formatMetricsForSlack(raiMetrics);
+    
+    // Create new blocks with metrics appended
+    const blocksWithMetrics = [
+      ...blocks,
+      {
+        type: "divider"
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: metricsText
+        }
+      }
+    ];
+    
+    // Send with the enhanced blocks
+    return await sendMessageWithBlocks(channelId, safeFallbackText, blocksWithMetrics);
+  } catch (error) {
+    console.error('Error sending Slack blocks with RAI metrics:', error.message);
+    
+    // Fall back to regular blocks if there's an error with the metrics
+    try {
+      return await sendMessageWithBlocks(channelId, fallbackText, blocks);
+    } catch (fallbackError) {
+      console.error('Error sending fallback blocks:', fallbackError);
       throw error; // Throw the original error
     }
   }
@@ -552,7 +657,9 @@ async function handleViewSubmission(payload) {
 
 module.exports = {
   sendMessage,
+  sendMessageWithRAI,
   sendMessageWithBlocks,
+  sendMessageWithBlocksAndRAI,
   getUserInfo,
   openDirectMessageChannel,
   handleInteractionPayload,
