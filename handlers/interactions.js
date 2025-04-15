@@ -429,6 +429,78 @@ async function handleViewProgress(action, payload) {
   }
 }
 
+// handlers/interactions.js
+async function handlePulseResponse(action, payload) {
+  try {
+    // Get the response value
+    const response = action.action_id.replace('pulse_', '');
+    
+    // Store this in a simple array (we'd use a database in a real app)
+    if (!global.pulseResponses) global.pulseResponses = [];
+    
+    global.pulseResponses.push({
+      userId: payload.user.id,
+      timestamp: new Date(),
+      response: response,
+      teamId: payload.team.id
+    });
+    
+    // Send confirmation
+    await slackService.sendMessage(
+      payload.channel.id,
+      `Thanks for sharing how you're feeling! Your response (${response}) helps us understand team well-being patterns.`
+    );
+    
+    // Ask a follow-up dimension question (just one for demo)
+    const followupBlocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "Is there a specific dimension affecting your energy today?"
+        }
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button", 
+            text: { type: "plain_text", text: "🏃 Physical", emoji: true },
+            value: "physical",
+            action_id: "dimension_physical"
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "🧠 Mental", emoji: true },
+            value: "mental",
+            action_id: "dimension_mental"
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👥 Social", emoji: true },
+            value: "social",
+            action_id: "dimension_social"
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Skip", emoji: true },
+            value: "skip",
+            action_id: "dimension_skip"
+          }
+        ]
+      }
+    ];
+    
+    await slackService.sendMessageWithBlocks(
+      payload.channel.id,
+      "Follow-up question",
+      followupBlocks
+    );
+  } catch (error) {
+    console.error('Error handling pulse response:', error);
+  }
+}
+
 module.exports = {
   handleInteractions
 };

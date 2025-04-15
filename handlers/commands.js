@@ -2,12 +2,11 @@
 const langflowService = require('../services/langflow');
 const slackService = require('../services/slack');
 const checklistController = require('../controllers/checklist');
+const wellbeingHandler = require('./wellbeing');
 
-/**
- * Express route handler for Slack commands
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+// handlers/commands.js
+// Update the handleCommands function
+
 function handleCommands(req, res) {
   try {
     const payload = req.body;
@@ -43,10 +42,38 @@ function handleCommands(req, res) {
       // Process the command asynchronously
       handleCheckProgressCommand(payload);
     }
+    // Add WellSense360 commands here
+    else if (command === '/enroll') {
+      res.status(200).send({
+        response_type: 'ephemeral',
+        text: 'Setting up your well-being measurement...'
+      });
+      
+      // Process the command asynchronously
+      wellbeingHandler.handleEnrollCommand(payload);
+    }
+    else if (command === '/insights') {
+      res.status(200).send({
+        response_type: 'ephemeral',
+        text: 'Generating your well-being insights...'
+      });
+      
+      // Process the command asynchronously
+      wellbeingHandler.handleInsightsCommand(payload);
+    }
+    else if (command === '/demo') {
+      res.status(200).send({
+        response_type: 'ephemeral',
+        text: 'Starting the WellSense360 demo...'
+      });
+      
+      // Process the command asynchronously
+      wellbeingHandler.handleDemoCommand(payload);
+    }
     else {
       // Unknown command - respond immediately
       res.status(200).send({
-        text: "I don't recognize that command. Try /askbuddy, /create-checklist, or /check-progress."
+        text: "I don't recognize that command. Try /askbuddy, /create-checklist, /check-progress, /enroll, /insights, or /demo."
       });
     }
   } catch (error) {
