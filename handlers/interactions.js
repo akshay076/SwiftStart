@@ -448,37 +448,71 @@ async function handleViewProgress(action, payload) {
 const pulseResponses = new Map();
 
 // Updated handlePulseResponse to handle multiple dimensions
+// In handlers/interactions.js, update handlePulseResponse
 async function handlePulseResponse(action, payload) {
   try {
-    // Load configuration
-    const config = require('../config/wellbeing-pulse-config.json');
-    
     // Extract dimension and response
     const [dimension, response] = action.action_id.split('_');
+    const userId = payload.user.id;
     
-    // Validate dimension and response
-    if (!dimension || !response) {
-      console.error('Invalid pulse response:', action);
-      return;
-    }
+    // Ensure global pulse responses map exists
+    global.pulseResponses = global.pulseResponses || new Map();
     
-    // Find the dimension in the config
+    // Get or create user's responses
+    const userResponses = global.pulseResponses.get(userId) || {};
+    
+    // Store the response with timestamp
+    userResponses[dimension] = {
+      value: response,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Update global pulse responses
+    global.pulseResponses.set(userId, userResponses);
+    
+    // Rest of the existing response handling code remains the same
+    const config = require('../config/wellbeing-pulse-config.json');
     const dimensionConfig = config.dimensions.find(d => d.id === dimension);
     
-    // Generate recommendation
     const recommendations = config.recommendations[response] || [];
     const recommendation = recommendations.length > 0 
       ? recommendations[Math.floor(Math.random() * recommendations.length)]
       : "Keep taking care of yourself and listen to your body and mind.";
     
-    // Send response
+    // Create updated blocks - preserving the original structure but marking the selected option
+    const originalBlocks = payload.message.blocks;
+    const updatedBlocks = originalBlocks.map(block => {
+      if (block.type === "actions" && block.elements) {
+        return {
+          ...block,
+          elements: block.elements.map(element => {
+            // If this button matches the selected dimension and response
+            if (element.action_id === action.action_id) {
+              return {
+                ...element,
+                style: "primary" // Highlight the selected button
+              };
+            }
+            return element;
+          })
+        };
+      }
+      return block;
+    });
+    
+    // Update the message with the new blocks and add the insight
+    await slackService.updateMessage(
+      payload.channel.id,
+      payload.message.ts,
+      "Updated WellSense360 Pulse Check",
+      updatedBlocks
+    );
+    
+    // Send a follow-up message with the recommendation
     await slackService.sendMessage(
       payload.channel.id,
       `Thanks for sharing your ${dimensionConfig?.name || dimension} level! 🌟\n\n*Insight:*\n${recommendation}`
     );
-    
-    // Optional: Store or process the response
-    console.log(`Pulse response - Dimension: ${dimension}, Response: ${response}`);
     
   } catch (error) {
     console.error('Error processing pulse response:', error);
@@ -487,6 +521,13 @@ async function handlePulseResponse(action, payload) {
       "Sorry, I encountered an error processing your response."
     );
   }
+}
+
+// In the insights command handler
+function getUserPulseResponses(userId) {
+  // Use global pulse responses
+  const pulseResponses = global.pulseResponses || new Map();
+  return pulseResponses.get(userId) || {};
 }
 
 /**

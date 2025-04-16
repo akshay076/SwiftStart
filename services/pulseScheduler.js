@@ -84,50 +84,77 @@ class PulseScheduler {
       return checkTimes;
     }
     
-    // Create Slack blocks for pulse check
+    // Method to create multi-question pulse check blocks
     createPulseCheckBlocks() {
-      const selectedDimensions = this.selectPulseQuestions();
-      
-      const blocks = [
-        {
-          type: "header",
-          text: {
-            type: "plain_text",
-            text: "🌈 WellSense360 Quick Check-in",
-            emoji: true
-          }
-        }
-      ];
-      
-      // Add questions for each selected dimension
-      selectedDimensions.forEach(dimension => {
-        const question = dimension.questions[0];
+        const config = require('../config/wellbeing-pulse-config.json');
+        const { dimensions } = config;
         
-        blocks.push({
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*${dimension.name}*: ${question.text}`
-          }
-        });
+        // Ensure we select at least 3 dimensions, even if config has fewer
+        const selectedDimensions = dimensions
+          .sort(() => 0.5 - Math.random())
+          .slice(0, Math.min(3, dimensions.length)); // Take first 3 or all if fewer
         
-        blocks.push({
-          type: "actions",
-          elements: question.responseOptions.map(option => ({
-            type: "button",
+        const blocks = [
+          {
+            type: "header",
             text: {
               type: "plain_text",
-              text: option.text,
+              text: "🌈 WellSense360 Quick Check-in",
               emoji: true
-            },
-            value: option.value,
-            action_id: `pulse_${dimension.id}_${option.value}`
-          }))
+            }
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "Let's check in on a few dimensions of your well-being:"
+            }
+          }
+        ];
+        
+        // Add blocks for each selected dimension
+        selectedDimensions.forEach((dimension, index) => {
+          // Add divider between questions (except first)
+          if (index > 0) {
+            blocks.push({ type: "divider" });
+          }
+          
+          // Question block
+          blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*${dimension.name}*: ${dimension.questions[0].text}`
+            }
+          });
+          
+          // Response buttons
+          blocks.push({
+            type: "actions",
+            elements: dimension.questions[0].responseOptions.map(option => ({
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: option.text,
+                emoji: true
+              },
+              value: option.value,
+              action_id: `${dimension.id}_${option.value}`
+            }))
+          });
         });
-      });
-      
-      return blocks;
-    }
+        
+        // Context block
+        blocks.push({
+          type: "context",
+          elements: [{
+            type: "mrkdwn",
+            text: "Your responses help us understand team well-being. 💡"
+          }]
+        });
+        
+        return blocks;
+      }
     
     // Send a pulse check to user
     async sendPulseCheck(userId, channelId) {
@@ -191,85 +218,6 @@ class PulseScheduler {
       }
     }
 }
-
-// Method to create multi-question pulse check blocks
-createPulseCheckBlocks() {
-    // Load configuration
-    const config = require('../config/wellbeing-pulse-config.json');
-    const { dimensions } = config;
-    
-    // Randomly select 3 unique dimensions
-    const selectedDimensions = dimensions
-      .sort(() => 0.5 - Math.random()) // Shuffle
-      .slice(0, 3); // Take first 3
-    
-    const blocks = [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: "🌈 WellSense360 Quick Check-in",
-          emoji: true
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "We'd love to understand how you're doing across a few dimensions today."
-        }
-      }
-    ];
-    
-    // Add questions for each selected dimension
-    selectedDimensions.forEach((dimension, index) => {
-      const question = dimension.questions[0];
-      
-      // Add a divider between questions (except before the first)
-      if (index > 0) {
-        blocks.push({
-          type: "divider"
-        });
-      }
-      
-      // Question text block
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*${dimension.name}*: ${question.text}`
-        }
-      });
-      
-      // Response buttons
-      blocks.push({
-        type: "actions",
-        elements: question.responseOptions.map(option => ({
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: option.text,
-            emoji: true
-          },
-          value: option.value,
-          action_id: `${dimension.id}_${option.value}`
-        }))
-      });
-    });
-    
-    // Add a closing context
-    blocks.push({
-      type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: "Your responses help us understand and support team well-being. 💡"
-        }
-      ]
-    });
-    
-    return blocks;
-  };
 
 // Export a singleton instance
 const scheduler = new PulseScheduler();

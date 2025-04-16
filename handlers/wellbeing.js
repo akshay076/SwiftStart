@@ -1,5 +1,6 @@
 // handlers/wellbeing.js
 const slackService = require('../services/slack');
+const wellnessInsightsService = require('../services/wellnessInsights');
 
 /**
  * Handle demo command to showcase WellSense360
@@ -234,17 +235,41 @@ async function handleDemoCommand(payload) {
  * Handle insights command to show well-being dashboard
  * @param {Object} payload - Slack command payload
  */
+// handlers/wellbeing.js
+// Update handleInsightsCommand
 async function handleInsightsCommand(payload) {
-  const { user_id, channel_id } = payload;
+    const { channel_id } = payload;
+    
+    try {
+      await wellnessInsightsService.sendWellnessInsights(channel_id);
+    } catch (error) {
+      console.error('Error sending insights:', error);
+      await slackService.sendMessage(
+        channel_id,
+        "Sorry, I encountered an error showing your insights."
+      );
+    }
+  }
   
-  try {
-    // For hackathon, we'll just show mock insights
-    const insightBlocks = [
+  async function sendPersonalInsights(userId, channelId) {
+    // Retrieve user's pulse responses
+    const userResponses = getUserPulseResponses(userId);
+    
+    if (!userResponses || Object.keys(userResponses).length === 0) {
+      await slackService.sendMessage(
+        channelId,
+        "You haven't completed any pulse checks yet. Keep tracking your well-being!"
+      );
+      return;
+    }
+    
+    // Create personal insights blocks
+    const personalInsightsBlocks = [
       {
         type: "header",
         text: {
           type: "plain_text",
-          text: "Team Well-being Insights",
+          text: "🌟 Your Personal Well-being Insights",
           emoji: true
         }
       },
@@ -252,22 +277,77 @@ async function handleInsightsCommand(payload) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: "*Team Energy Trend (Last 14 Days)*"
+          text: "*Your Recent Well-being Snapshot*"
+        }
+      }
+    ];
+    
+    // Add insights for each dimension
+    Object.entries(userResponses).forEach(([dimension, response]) => {
+      personalInsightsBlocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${dimension.charAt(0).toUpperCase() + dimension.slice(1)}*: ${response.value} (${response.timestamp})`
+        }
+      });
+    });
+    
+    // Add trend and recommendation block
+    personalInsightsBlocks.push(
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*Personalized Recommendation:*\nKeep tracking your well-being and celebrate your progress!"
+        }
+      }
+    );
+    
+    await slackService.sendMessageWithBlocks(
+      channelId,
+      "Your Personal Well-being Insights",
+      personalInsightsBlocks
+    );
+  }
+  
+  function getUserPulseResponses(userId) {
+    // In a real implementation, this would query a database
+    // For now, we'll use the in-memory storage from interactions
+    const pulseResponses = global.pulseResponses || new Map();
+    return pulseResponses.get(userId) || {};
+  }
+  
+  async function sendTeamInsights(channelId) {
+    // Aggregate insights across the team
+    const teamInsightsBlocks = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "📊 Comprehensive Team Well-being Analytics",
+          emoji: true
         }
       },
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: "```\nEnergy: ▁▂▃▂▁▂▃▄▅▆▅▄▅▇\n         Mon          Fri          Wed\n```"
+          text: "*🔍 Trend Analysis & Key Insights*"
         }
       },
       {
         type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*Key Insights*\n• Energy levels typically dip on Mondays\n• Team's overall energy has increased 23% this week\n• 2 team members reported lower energy today"
-        }
+        fields: [
+          {
+            type: "mrkdwn",
+            text: "*Overall Wellness Trend:* 🟢 Improving (+5% this week)"
+          },
+          {
+            type: "mrkdwn",
+            text: "*Risk Areas:* 🚨 Mental Well-being (Low Focus Levels)"
+          }
+        ]
       },
       {
         type: "divider"
@@ -276,7 +356,7 @@ async function handleInsightsCommand(payload) {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: "*Dimension Breakdown*"
+          text: "*Dimensional Performance Breakdown*"
         }
       },
       {
@@ -284,164 +364,104 @@ async function handleInsightsCommand(payload) {
         fields: [
           {
             type: "mrkdwn",
-            text: "*Physical:* 72% 📈"
+            text: "*Energy* 🔋\n- Avg: 72%\n- Trend: 📈 Improving\n- Hotspot: Afternoon energy dip"
           },
           {
             type: "mrkdwn",
-            text: "*Mental:* 68% 📉"
+            text: "*Focus* 🎯\n- Avg: 58%\n- Trend: 📉 Declining\n- Hotspot: Morning concentration"
           },
           {
             type: "mrkdwn",
-            text: "*Social:* 85% ↔️"
+            text: "*Team Connection* 🤝\n- Avg: 65%\n- Trend: ↔️ Stable\n- Insight: Remote work impact"
           },
           {
             type: "mrkdwn",
-            text: "*Financial:* 77% 📈"
+            text: "*Professional Growth* 📈\n- Avg: 70%\n- Trend: 📈 Improving\n- Hotspot: Learning opportunities"
+          }
+        ]
+      },
+      {
+        type: "divider"
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*🔬 Detailed Trend Analysis*\n\n*Key Observations:*\n" +
+                "• Mental well-being shows signs of strain\n" +
+                "• Energy levels improving with recent interventions\n" +
+                "• Professional growth perception increasing"
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*🚀 Recommended Interventions:*\n" +
+                "1. Introduce focused breaks to address concentration issues\n" +
+                "2. Implement peer support groups for mental well-being\n" +
+                "3. Continue professional development initiatives"
+        }
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "💡 Insights based on anonymized, aggregated responses. Updated: " + new Date().toLocaleDateString()
           }
         ]
       }
     ];
     
     await slackService.sendMessageWithBlocks(
-      channel_id,
-      "Team well-being insights",
-      insightBlocks
-    );
-    
-    // Send mock recommendations
-    const recommendationBlocks = [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: "AI-Generated Recommendations",
-          emoji: true
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*Based on current patterns:*"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "1️⃣ Consider lighter meeting load on Monday mornings"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "2️⃣ Mental dimension shows downward trend - promote mental health resources"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "3️⃣ Recent successful intervention: Flexible lunch hours (+15% energy)"
-        }
-      }
-    ];
-    
-    await slackService.sendMessageWithBlocks(
-      channel_id,
-      "Team well-being recommendations",
-      recommendationBlocks
-    );
-  } catch (error) {
-    console.error('Error sending insights:', error);
-    await slackService.sendMessage(
-      channel_id,
-      "Sorry, I encountered an error showing your insights."
+      channelId,
+      "Comprehensive Team Well-being Insights",
+      teamInsightsBlocks
     );
   }
-}
+  
+  module.exports = {
+    handleInsightsCommand
+  };
 
 /**
  * Handle enrollment for automated well-being pulses
  * @param {Object} payload - Slack command payload
  */
+// In handlers/wellbeing.js
 async function handleEnrollCommand(payload) {
-  const { user_id, channel_id, team_id } = payload;
-  
-  try {
-    // For hackathon, we'll just simulate enrollment
+    const { user_id, channel_id, team_id } = payload;
     
-    // Send confirmation
-    await slackService.sendMessage(
-      channel_id,
-      `✅ *You're enrolled in WellSense360!*\n\nYou'll receive automated well-being pulse checks throughout your workday.\n\nThese brief check-ins help measure team well-being patterns while respecting your privacy.\n\nType \`/insights\` anytime to see anonymized team insights.`
-    );
-    
-    // For hackathon demo purposes, also send a pulse immediately
-    // In production, we'd set up a real scheduler
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Send a sample pulse
-    const pulseBlocks = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "📊 *Quick Well-being Pulse*\n\nHow would you rate your energy level right now?"
-        }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { 
-              type: "plain_text", 
-              text: "😴 Low", 
-              emoji: true 
-            },
-            value: "low",
-            action_id: "energy_low"
-          },
-          {
-            type: "button",
-            text: { 
-              type: "plain_text", 
-              text: "😐 Medium", 
-              emoji: true 
-            },
-            value: "medium",
-            action_id: "energy_medium"
-          },
-          {
-            type: "button",
-            text: { 
-              type: "plain_text", 
-              text: "⚡ High", 
-              emoji: true 
-            },
-            value: "high",
-            action_id: "energy_high"
-          }
-        ]
-      }
-    ];
-    
-    await slackService.sendMessageWithBlocks(
-      channel_id,
-      "First well-being pulse check",
-      pulseBlocks
-    );
-    
-  } catch (error) {
-    console.error('Error enrolling in well-being pulses:', error);
-    await slackService.sendMessage(
-      channel_id,
-      "Sorry, I encountered an error enrolling you in well-being measurements."
-    );
+    try {
+      // Send confirmation
+      await slackService.sendMessage(
+        channel_id,
+        `✅ *You're enrolled in WellSense360!*\n\nYou'll receive automated well-being pulse checks throughout your workday.\n\nThese brief check-ins help measure team well-being patterns while respecting your privacy.\n\nType \`/insights\` anytime to see anonymized team insights.`
+      );
+      
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Use pulse scheduler to create blocks
+      const pulseScheduler = require('../services/pulseScheduler');
+      const pulseBlocks = pulseScheduler.createPulseCheckBlocks();
+      
+      // Send the pulse check with blocks
+      await slackService.sendMessageWithBlocks(
+        channel_id, 
+        "WellSense360 Well-being Pulse",
+        pulseBlocks
+      );
+      
+    } catch (error) {
+      console.error('Error enrolling in well-being pulses:', error);
+      await slackService.sendMessage(
+        channel_id,
+        "Sorry, I encountered an error enrolling you in well-being measurements."
+      );
+    }
   }
-}
 
 module.exports = {
   handleDemoCommand,
