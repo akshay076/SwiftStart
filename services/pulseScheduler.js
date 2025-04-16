@@ -1,8 +1,42 @@
 // services/pulseScheduler.js
+const fs = require('fs');
+const path = require('path');
+
 class PulseScheduler {
     constructor() {
+      // Load configuration
+      this.config = this.loadConfiguration();
       this.schedules = new Map();
       this.intervalId = null;
+    }
+    
+    // Load configuration from JSON file
+    loadConfiguration() {
+      try {
+        const configPath = path.join(__dirname, '..', 'config', 'wellbeing-pulse-config.json');
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      } catch (error) {
+        console.error('Failed to load pulse configuration:', error);
+        // Fallback to hardcoded configuration
+        return {
+          dimensions: [],
+          pulseFrequency: {
+            minIntervalHours: 2,
+            maxIntervalHours: 4,
+            workHoursStart: 9,
+            workHoursEnd: 17
+          }
+        };
+      }
+    }
+    
+    // Randomly select pulse questions
+    selectPulseQuestions() {
+      const { dimensions } = this.config;
+      
+      // Randomly select 3-4 unique dimensions
+      const shuffled = dimensions.sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, Math.floor(Math.random() * 2) + 3); // 3-4 dimensions
     }
     
     // Start the scheduler for all users
@@ -19,15 +53,17 @@ class PulseScheduler {
     
     // Schedule pulses for a user
     scheduleForUser(userId, teamId, channelId) {
-      // For hackathon demo purposes, we'll use a simple schedule
-      // In real implementation, this would be more sophisticated
+      const { pulseFrequency } = this.config;
       
-      // Create 2-3 random check times during work hours
-      const workHours = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+      // Create randomized check times during work hours
       const checkTimes = [];
+      const workHours = Array.from(
+        {length: pulseFrequency.workHoursEnd - pulseFrequency.workHoursStart}, 
+        (_, i) => pulseFrequency.workHoursStart + i
+      );
       
-      // Create 2 random times
-      for (let i = 0; i < 2; i++) {
+      // Create 2-3 random times
+      for (let i = 0; i < Math.floor(Math.random() * 2) + 2; i++) {
         const hour = workHours[Math.floor(Math.random() * workHours.length)];
         const minute = Math.floor(Math.random() * 60);
         checkTimes.push({ hour, minute });
@@ -38,7 +74,7 @@ class PulseScheduler {
         teamId,
         channelId,
         checkTimes,
-        lastPulseDate: null // Track last pulse date to avoid duplicates
+        lastPulseDate: null
       });
       
       console.log(`Scheduled pulse checks for user ${userId} at times:`, 
@@ -48,125 +84,101 @@ class PulseScheduler {
       return checkTimes;
     }
     
-    // Check if it's time to send pulses
-    async checkAndSendPulses() {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const today = now.toDateString();
+    // Create Slack blocks for pulse check
+    createPulseCheckBlocks() {
+      const selectedDimensions = this.selectPulseQuestions();
       
-      // Demo: For hackathon we'll just do a simplified check
-      for (const [userId, schedule] of this.schedules.entries()) {
-        // Skip if already sent a pulse today (avoid spam in demo)
-        if (schedule.lastPulseDate === today) continue;
-        
-        // Check if current time matches any scheduled time (±1 minute)
-        const shouldSendPulse = schedule.checkTimes.some(time => {
-          return time.hour === currentHour && 
-                 Math.abs(time.minute - currentMinute) <= 1;
-        });
-        
-        if (shouldSendPulse) {
-          try {
-            await this.sendPulseCheck(schedule.userId, schedule.channelId);
-            schedule.lastPulseDate = today;
-            this.schedules.set(userId, schedule);
-          } catch (error) {
-            console.error(`Error sending pulse to user ${userId}:`, error);
+      const blocks = [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "🌈 WellSense360 Quick Check-in",
+            emoji: true
           }
         }
-      }
+      ];
+      
+      // Add questions for each selected dimension
+      selectedDimensions.forEach(dimension => {
+        const question = dimension.questions[0];
+        
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${dimension.name}*: ${question.text}`
+          }
+        });
+        
+        blocks.push({
+          type: "actions",
+          elements: question.responseOptions.map(option => ({
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: option.text,
+              emoji: true
+            },
+            value: option.value,
+            action_id: `pulse_${dimension.id}_${option.value}`
+          }))
+        });
+      });
+      
+      return blocks;
     }
     
     // Send a pulse check to user
     async sendPulseCheck(userId, channelId) {
       try {
-        // Get random dimension to check (vary the questions)
-        const dimensions = ['energy', 'focus', 'stress', 'connection'];
-        const dimension = dimensions[Math.floor(Math.random() * dimensions.length)];
+        const slackService = require('./slack');
         
-        // Create pulse question based on dimension
-        let questionText;
-        let actionPrefix;
-        
-        switch (dimension) {
-          case 'energy':
-            questionText = "📊 *Quick Well-being Pulse*\n\nHow would you rate your energy level right now?";
-            actionPrefix = "energy";
-            break;
-          case 'focus':
-            questionText = "📊 *Quick Well-being Pulse*\n\nHow's your focus/concentration at the moment?";
-            actionPrefix = "focus";
-            break;
-          case 'stress':
-            questionText = "📊 *Quick Well-being Pulse*\n\nWhat's your current stress level?";
-            actionPrefix = "stress";
-            break;
-          case 'connection':
-            questionText = "📊 *Quick Well-being Pulse*\n\nHow connected do you feel with your team today?";
-            actionPrefix = "connection";
-            break;
-        }
-        
-        // Create blocks with proper emoji based on dimension
-        const pulseBlocks = [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: questionText
-            }
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { 
-                  type: "plain_text", 
-                  text: dimension === 'stress' ? "😌 Low" : "😴 Low", 
-                  emoji: true 
-                },
-                value: "low",
-                action_id: `${actionPrefix}_low`
-              },
-              {
-                type: "button",
-                text: { 
-                  type: "plain_text", 
-                  text: "😐 Medium", 
-                  emoji: true 
-                },
-                value: "medium",
-                action_id: `${actionPrefix}_medium`
-              },
-              {
-                type: "button",
-                text: { 
-                  type: "plain_text", 
-                  text: dimension === 'stress' ? "😰 High" : "⚡ High", 
-                  emoji: true 
-                },
-                value: "high",
-                action_id: `${actionPrefix}_high`
-              }
-            ]
-          }
-        ];
+        // Create pulse check blocks
+        const pulseBlocks = this.createPulseCheckBlocks();
         
         // Send the message
-        const slackService = require('./slackService'); // Adjust path as needed
         await slackService.sendMessageWithBlocks(
           channelId,
-          "Well-being check-in",
+          "WellSense360 Well-being Check",
           pulseBlocks
         );
         
-        console.log(`Sent ${dimension} pulse check to user ${userId}`);
+        console.log(`Sent pulse check to user ${userId}`);
         return true;
       } catch (error) {
         console.error('Error sending automated pulse:', error);
         throw error;
+      }
+    }
+    
+    // Rest of the implementation remains the same as in the original file
+    checkAndSendPulses() {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const today = now.toDateString();
+      
+      for (const [userId, schedule] of this.schedules.entries()) {
+        // Skip if already sent a pulse today
+        if (schedule.lastPulseDate === today) continue;
+        
+        // Check if current time matches any scheduled time (±1 minute)
+        const shouldSendPulse = schedule.checkTimes.some(time => 
+          time.hour === currentHour && 
+          Math.abs(time.minute - currentMinute) <= 1
+        );
+        
+        if (shouldSendPulse) {
+          this.sendPulseCheck(schedule.userId, schedule.channelId)
+            .then(() => {
+              schedule.lastPulseDate = today;
+              this.schedules.set(userId, schedule);
+            })
+            .catch(error => {
+              console.error(`Error sending pulse to user ${userId}:`, error);
+            });
+        }
       }
     }
     
@@ -178,8 +190,87 @@ class PulseScheduler {
         console.log('Pulse scheduler stopped');
       }
     }
-  }
-  
-  // Export a singleton instance
-  const scheduler = new PulseScheduler();
-  module.exports = scheduler;
+}
+
+// Method to create multi-question pulse check blocks
+createPulseCheckBlocks() {
+    // Load configuration
+    const config = require('../config/wellbeing-pulse-config.json');
+    const { dimensions } = config;
+    
+    // Randomly select 3 unique dimensions
+    const selectedDimensions = dimensions
+      .sort(() => 0.5 - Math.random()) // Shuffle
+      .slice(0, 3); // Take first 3
+    
+    const blocks = [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "🌈 WellSense360 Quick Check-in",
+          emoji: true
+        }
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "We'd love to understand how you're doing across a few dimensions today."
+        }
+      }
+    ];
+    
+    // Add questions for each selected dimension
+    selectedDimensions.forEach((dimension, index) => {
+      const question = dimension.questions[0];
+      
+      // Add a divider between questions (except before the first)
+      if (index > 0) {
+        blocks.push({
+          type: "divider"
+        });
+      }
+      
+      // Question text block
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${dimension.name}*: ${question.text}`
+        }
+      });
+      
+      // Response buttons
+      blocks.push({
+        type: "actions",
+        elements: question.responseOptions.map(option => ({
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: option.text,
+            emoji: true
+          },
+          value: option.value,
+          action_id: `${dimension.id}_${option.value}`
+        }))
+      });
+    });
+    
+    // Add a closing context
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "Your responses help us understand and support team well-being. 💡"
+        }
+      ]
+    });
+    
+    return blocks;
+  };
+
+// Export a singleton instance
+const scheduler = new PulseScheduler();
+module.exports = scheduler;

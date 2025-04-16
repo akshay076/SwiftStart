@@ -63,12 +63,24 @@ const handleBlockActions = async (payload) => {
     for (const action of actions) {
       console.log(`Processing action: ${action.action_id}, value: ${action.value}`);
       
-      // Clean action_id format for easier handling
-      if (action.action_id.startsWith('toggle_item_')) {
+      // Check if this is a wellness pulse response
+      const wellnessDimensions = ['energy', 'focus', 'connection', 'growth'];
+      const dimensionMatch = wellnessDimensions.find(dim => 
+        action.action_id.startsWith(dim) || 
+        action.action_id === `pulse_${dim}_${action.value}`
+      );
+      
+      if (dimensionMatch) {
+        await handlePulseResponse({
+          action_id: action.action_id,
+          value: action.value
+        }, payload);
+      }
+      // Existing action handling
+      else if (action.action_id.startsWith('toggle_item_')) {
         await handleItemToggle(action, payload);
       } 
       else if (action.action_id.startsWith('view_item_')) {
-        // Optional: Handle view item action if needed
         console.log('View item action - no additional handling needed');
       }
       else if (action.action_id.startsWith('view_progress_')) {
@@ -82,6 +94,7 @@ const handleBlockActions = async (payload) => {
     console.error('Error in handleBlockActions:', error);
   }
 }
+
 
 // Update the handleItemToggle function in handlers/interactions.js
 
@@ -429,77 +442,80 @@ async function handleViewProgress(action, payload) {
   }
 }
 
-// handlers/interactions.js
+// handlers/interactions.js - Update pulse response handling
+
+// Global storage for pulse responses (replace with database in production)
+const pulseResponses = new Map();
+
+// Updated handlePulseResponse to handle multiple dimensions
 async function handlePulseResponse(action, payload) {
   try {
-    // Get the response value
-    const response = action.action_id.replace('pulse_', '');
+    // Load configuration
+    const config = require('../config/wellbeing-pulse-config.json');
     
-    // Store this in a simple array (we'd use a database in a real app)
-    if (!global.pulseResponses) global.pulseResponses = [];
+    // Extract dimension and response
+    const [dimension, response] = action.action_id.split('_');
     
-    global.pulseResponses.push({
-      userId: payload.user.id,
-      timestamp: new Date(),
-      response: response,
-      teamId: payload.team.id
-    });
+    // Validate dimension and response
+    if (!dimension || !response) {
+      console.error('Invalid pulse response:', action);
+      return;
+    }
     
-    // Send confirmation
+    // Find the dimension in the config
+    const dimensionConfig = config.dimensions.find(d => d.id === dimension);
+    
+    // Generate recommendation
+    const recommendations = config.recommendations[response] || [];
+    const recommendation = recommendations.length > 0 
+      ? recommendations[Math.floor(Math.random() * recommendations.length)]
+      : "Keep taking care of yourself and listen to your body and mind.";
+    
+    // Send response
     await slackService.sendMessage(
       payload.channel.id,
-      `Thanks for sharing how you're feeling! Your response (${response}) helps us understand team well-being patterns.`
+      `Thanks for sharing your ${dimensionConfig?.name || dimension} level! 🌟\n\n*Insight:*\n${recommendation}`
     );
     
-    // Ask a follow-up dimension question (just one for demo)
-    const followupBlocks = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "Is there a specific dimension affecting your energy today?"
-        }
-      },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button", 
-            text: { type: "plain_text", text: "🏃 Physical", emoji: true },
-            value: "physical",
-            action_id: "dimension_physical"
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "🧠 Mental", emoji: true },
-            value: "mental",
-            action_id: "dimension_mental"
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "👥 Social", emoji: true },
-            value: "social",
-            action_id: "dimension_social"
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "Skip", emoji: true },
-            value: "skip",
-            action_id: "dimension_skip"
-          }
-        ]
-      }
-    ];
+    // Optional: Store or process the response
+    console.log(`Pulse response - Dimension: ${dimension}, Response: ${response}`);
     
-    await slackService.sendMessageWithBlocks(
-      payload.channel.id,
-      "Follow-up question",
-      followupBlocks
-    );
   } catch (error) {
-    console.error('Error handling pulse response:', error);
+    console.error('Error processing pulse response:', error);
+    await slackService.sendMessage(
+      payload.channel.id,
+      "Sorry, I encountered an error processing your response."
+    );
   }
 }
+
+/**
+ * Generate a personalized recommendation based on dimension and response
+ * @param {string} dimension - The wellness dimension
+ * @param {string} response - The user's response
+ * @returns {string} - Recommendation text
+ */
+function generateRecommendation(dimension, response) {
+  // Load configuration
+  const config = require('../config/wellbeing-pulse-config.json');
+  
+  // Find matching recommendations
+  const recommendations = config.recommendations[response] || [];
+  
+  // Return a random recommendation if available
+  if (recommendations.length > 0) {
+    return recommendations[Math.floor(Math.random() * recommendations.length)];
+  }
+  
+  // Fallback generic recommendation
+  return "Keep taking care of yourself and listen to your body and mind.";
+};
+
+module.exports = {
+  handlePulseResponse,
+  generateRecommendation,
+  handleBlockActions
+};
 
 module.exports = {
   handleInteractions

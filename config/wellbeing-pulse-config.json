@@ -1,0 +1,87 @@
+{
+    "dimensions": [
+      {
+        "id": "energy",
+        "name": "Energy",
+        "category": "Physical",
+        "questions": [
+          {
+            "text": "How's your energy level today?",
+            "responseOptions": [
+              { "text": "😴 Low", "value": "low" },
+              { "text": "😐 Medium", "value": "medium" },
+              { "text": "⚡ High", "value": "high" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "focus",
+        "name": "Focus",
+        "category": "Mental",
+        "questions": [
+          {
+            "text": "How focused are you right now?",
+            "responseOptions": [
+              { "text": "🌫️ Distracted", "value": "low" },
+              { "text": "😐 Moderate", "value": "medium" },
+              { "text": "🎯 Laser-sharp", "value": "high" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "connection",
+        "name": "Team Connection",
+        "category": "Social",
+        "questions": [
+          {
+            "text": "How connected do you feel with your team today?",
+            "responseOptions": [
+              { "text": "🏝️ Isolated", "value": "low" },
+              { "text": "😐 Neutral", "value": "medium" },
+              { "text": "🤝 Connected", "value": "high" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "growth",
+        "name": "Professional Growth",
+        "category": "Development",
+        "questions": [
+          {
+            "text": "How are you feeling about your professional development?",
+            "responseOptions": [
+              { "text": "📉 Stagnant", "value": "low" },
+              { "text": "😐 Progressing", "value": "medium" },
+              { "text": "🚀 Thriving", "value": "high" }
+            ]
+          }
+        ]
+      }
+    ],
+    "pulseFrequency": {
+      "minIntervalHours": 2,
+      "maxIntervalHours": 4,
+      "workHoursStart": 9,
+      "workHoursEnd": 17
+    },
+    "recommendations": {
+      "low": [
+        "Take a short break and do some stretching.",
+        "Consider a quick walk or some light exercise.",
+        "Hydrate and have a healthy snack to boost energy."
+      ],
+      "medium": [
+        "You're doing okay. Small adjustments can help improve your well-being.",
+        "Check in with a colleague or mentor.",
+        "Review your goals and progress."
+      ],
+      "high": [
+        "Great job maintaining your well-being!",
+        "Keep up the positive momentum.",
+        "Share your strategies with your team."
+      ]
+    }
+  }
