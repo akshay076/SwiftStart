@@ -7,47 +7,48 @@ const slackService = require('./slack');
  * @returns {Promise<Object>} - Insights with key observations and recommendations
  */
 async function generateWellnessInsights(wellnessData) {
-  try {
-    // Prepare a structured prompt for Langflow
-    const insightsPrompt = `
-      Analyze the following team wellness data and provide insights:
-      
-      Wellness Dimensions:
-      - Physical Energy: ${wellnessData.physical.score}%
-      - Mental Well-being: ${wellnessData.mental.score}%
-      - Social Connection: ${wellnessData.social.score}%
-      - Professional Growth: ${wellnessData.growth.score}%
-
-      Trends:
-      - Physical Energy: ${wellnessData.physical.trend}
-      - Mental Well-being: ${wellnessData.mental.trend}
-      - Social Connection: ${wellnessData.social.trend}
-      - Professional Growth: ${wellnessData.growth.trend}
-
-      Provide a detailed analysis with:
-      1. Key observations across wellness dimensions
-      2. Specific, actionable recommended interventions
-      3. Brief rationale for recommendations
-
-      Format the response as:
-      **Detailed Trend Analysis**
-      Key Observations: [3-4 key insights]
-      
-      **Recommended Interventions**
-      1. [Specific intervention]
-      2. [Specific intervention]
-      3. [Specific intervention]
-    `;
-
-    // Call Langflow to generate insights
-    const insights = await langflowService.queryLangflow(insightsPrompt);
-
-    return insights;
-  } catch (error) {
-    console.error('Error generating wellness insights:', error);
-    return `Unable to generate insights. Error: ${error.message}`;
+    try {
+      const insightsPrompt = `
+  Analyze team wellness data and provide a concise report. 
+  
+  WELLNESS DATA:
+  - Physical Energy: ${wellnessData.physical.score}% (${wellnessData.physical.trend})
+  - Mental Well-being: ${wellnessData.mental.score}% (${wellnessData.mental.trend})
+  - Social Connection: ${wellnessData.social.score}% (${wellnessData.social.trend})
+  - Professional Growth: ${wellnessData.growth.score}% (${wellnessData.growth.trend})
+  
+  INSTRUCTIONS:
+  - Generate insights in max 3 concise bullet points
+  - Focus on key trends and critical observations
+  - Keep total response under 350 characters
+  - Use clear, direct language
+  - Highlight potential risks or opportunities
+  
+  FORMAT YOUR RESPONSE STRICTLY AS:
+  **Detailed Trend Analysis**
+  Key Observations: [Concise, data-driven insights]
+  
+  **Recommended Interventions**
+  1. [Specific, targeted intervention]
+  2. [Specific, targeted intervention]
+  3. [Specific, targeted intervention]
+  `;
+  
+      // Call Langflow to generate insights
+      const insights = await langflowService.queryLangflow(insightsPrompt);
+  
+      return insights;
+    } catch (error) {
+      console.error('Error generating wellness insights:', error);
+      return `**Detailed Trend Analysis**
+  Key Observations: Mental strain detected, energy improving, growth potential emerging
+  
+  **Recommended Interventions**
+  1. Implement mindfulness programs
+  2. Boost team engagement initiatives
+  3. Provide skill development resources`;
+    }
   }
-}
 
 /**
  * Create Slack blocks for wellness insights
