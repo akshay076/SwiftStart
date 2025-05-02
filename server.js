@@ -1,8 +1,7 @@
 // server.js
 const app = require('./app');
 const config = require('./config');
-const langflowService = require('./services/langflow');
-// server.js - after other initializations
+const langchainService = require('./services/langchainService');
 const pulseScheduler = require('./services/pulseScheduler');
 
 // Start the server
@@ -10,14 +9,14 @@ const server = app.listen(config.port, () => {
   console.log(`Server is running on port ${config.port}`);
 });
 
-// Optional: Test Langflow connection on startup
-if (process.env.TEST_LANGFLOW_ON_STARTUP === 'true') {
-  langflowService.testLangflowConnection()
+// Test Langchain connection on startup
+if (process.env.TEST_LANGCHAIN_ON_STARTUP === 'true') {
+  langchainService.testConnection()
     .then(response => {
-      console.log('✅ Langflow connection test successful');
+      console.log('✅ Langchain connection test successful');
     })
     .catch(error => {
-      console.error('❌ Langflow connection test failed:', error.message);
+      console.error('❌ Langchain connection test failed:', error.message);
     });
 }
 

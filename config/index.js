@@ -1,13 +1,13 @@
 // config/index.js
 require('dotenv').config({ path: './variables.env' });
-
+const { ChatGoogleGenerativeAI } = require("langchain/chat_models/googleai");
 const config = {
   port: process.env.PORT || 3000,
-  langflow: {
-    url: process.env.LANGFLOW_URL,
-    flowId: process.env.LANGFLOW_FLOW_ID,
-    apiToken: process.env.LANGFLOW_API_TOKEN,
-    fullEndpoint: 'https://api.langflow.astra.datastax.com/lf/ca17e67e-e893-437b-b9d6-8a58f6b0eda4/api/v1/run/',
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || 'gpt-4-turbo',
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.3'),
+    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '2000')
   },
   slack: {
     botToken: process.env.SLACK_BOT_TOKEN,
@@ -36,8 +36,8 @@ const config = {
 // Log configuration (excluding sensitive values)
 console.log('Configuration loaded:');
 console.log('- Server port:', config.port);
-console.log('- Langflow URL:', config.langflow.url || 'Not set');
-console.log('- Langflow Flow ID:', config.langflow.flowId ? 'Set (value hidden)' : 'Not set');
+console.log('- OpenAI model:', config.openai.model || 'Not set');
+console.log('- OpenAI API key:', config.openai.apiKey ? 'Set (value hidden)' : 'Not set');
 console.log('- Slack signing secret:', config.slack.signingSecret ? 'Set (value hidden)' : 'Not set');
 console.log('- Slack bot token:', config.slack.botToken ? 'Set (value hidden)' : 'Not set');
 console.log('- Azure AD client ID:', config.azureAd.clientId ? 'Set (value hidden)' : 'Not set');

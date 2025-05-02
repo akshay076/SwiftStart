@@ -1,5 +1,5 @@
 // controllers/checklist.js
-const langflowService = require('../services/langflow');
+const langchainService = require('../services/langchainService');
 const slackService = require('../services/slack');
 const config = require('../config');
 const helpers = require('../utils/helpers');
@@ -20,11 +20,11 @@ async function getChecklist(role) {
   if (config.validRoles.includes(normalizedRole)) {
     // Query Langflow with the role to get a dynamically generated checklist
     const query = `Get me the onboarding checklist for a ${role} role`;
-    return await langflowService.queryLangflow(query);
+    return await langchainService.queryLangflow(query);
   } else {
     // For unknown roles, return the general checklist
     const query = `Get me the general onboarding checklist`;
-    return await langflowService.queryLangflow(query);
+    return await langchainService.queryLangflow(query);
   }
 }
 

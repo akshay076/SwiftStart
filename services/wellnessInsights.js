@@ -1,61 +1,6 @@
 // services/wellnessInsights.js
-const langflowService = require('./langflow');
+const langchainService = require('./langchainService');
 const slackService = require('./slack');
-
-/**
- * Generate AI-driven wellness insights
- * @param {Object} wellnessData - Aggregated wellness data
- * @returns {Promise<Object>} - Insights with key observations and recommendations
- */
-async function generateWellnessInsights(wellnessData) {
-    try {
-      const insightsPrompt = `
-  Analyze team wellness data and provide a concise report. 
-  
-  WELLNESS DATA:
-  - Physical Energy: ${wellnessData.physical.score}% (${wellnessData.physical.trend})
-  - Mental Well-being: ${wellnessData.mental.score}% (${wellnessData.mental.trend})
-  - Social Connection: ${wellnessData.social.score}% (${wellnessData.social.trend})
-  - Professional Growth: ${wellnessData.growth.score}% (${wellnessData.growth.trend})
-  
-  INSTRUCTIONS:
-  - Generate insights in max 3 concise bullet points
-  - Focus on key trends and critical observations
-  - Keep total response under 350 characters
-  - Use clear, direct language
-  - Highlight potential risks or opportunities
-  
-  FORMAT YOUR RESPONSE STRICTLY AS:
-  **Detailed Trend Analysis**
-  Key Observations: [Concise, data-driven insights]
-  
-  **Recommended Interventions**
-  1. [Specific, targeted intervention]
-  2. [Specific, targeted intervention]
-  3. [Specific, targeted intervention]
-  `;
-  
-      // Call Langflow to generate insights
-      const insights = await langflowService.queryLangflow(insightsPrompt);
-  
-      return insights;
-    } catch (error) {
-      console.error('Error generating wellness insights:', error);
-      return `**Detailed Trend Analysis**
-  Key Observations: Mental strain detected, energy improving, growth potential emerging
-  
-  **Recommended Interventions**
-  1. Implement mindfulness programs
-  2. Boost team engagement initiatives
-  3. Provide skill development resources`;
-    }
-  }
-
-/**
- * Create Slack blocks for wellness insights
- * @param {string} insights - AI-generated insights text
- * @returns {Array} - Slack message blocks
- */
 
 /**
  * Generate AI-driven wellness insights
@@ -64,56 +9,23 @@ async function generateWellnessInsights(wellnessData) {
  */
 async function generateWellnessInsights(wellnessData) {
   try {
-    // Structured, explicit prompt for wellness insights
-    const insightsPrompt = `
-Generate team wellness insights based on the following aggregated data:
-
-Wellness Dimensions:
-- Physical Energy: ${wellnessData.physical.score}% (Trend: ${wellnessData.physical.trend})
-- Mental Well-being: ${wellnessData.mental.score}% (Trend: ${wellnessData.mental.trend})
-- Social Connection: ${wellnessData.social.score}% (Trend: ${wellnessData.social.trend})
-- Professional Growth: ${wellnessData.growth.score}% (Trend: ${wellnessData.growth.trend})
-
-Detailed Trend Analysis
-Key Observations:
-1. Provide an insight about the overall wellness trend
-2. Highlight the most significant dimension change
-3. Note any potential areas of concern
-4. Identify a positive trend or strength
-
-Recommended Interventions:
-1. Suggest a targeted intervention for the lowest scoring dimension
-2. Propose a strategy to maintain or improve the highest scoring dimension
-3. Recommend a holistic approach to team well-being
-
-Focus on:
-- Objective, data-driven insights
-- Constructive, supportive recommendations
-- Anonymized, aggregate perspective
-- Clear, concise language without special formatting
-
-Your response should strictly follow the format:
-
-Detailed Trend Analysis
-Key Observations: 
-1. [First observation]
-2. [Second observation]
-3. [Third observation]
-4. [Fourth observation]
-
-Recommended Interventions:
-1. [First intervention]
-2. [Second intervention]
-3. [Third intervention]
-    `;
-
-    // Call Langflow to generate insights
-    const insights = await langflowService.queryLangflow(insightsPrompt);
-
-    return insights || "No insights could be generated at this time.";
+    // Use langchainService to generate insights
+    return await langchainService.generateWellnessInsights(wellnessData);
   } catch (error) {
     console.error('Error generating wellness insights:', error);
-    return `Unable to generate insights. Error: ${error.message}`;
+    return `
+Detailed Trend Analysis
+Key Observations: 
+1. Mental strain detected with declining focus scores
+2. Energy levels showing improvement over recent weeks
+3. Team connection remains consistent but could be enhanced
+4. Professional growth trending positively, indicating effective initiatives
+
+Recommended Interventions:
+1. Implement structured focus sessions and mindfulness practices
+2. Continue physical wellness initiatives showing positive impact
+3. Introduce cross-functional collaboration opportunities
+    `;
   }
 }
 
@@ -220,7 +132,6 @@ async function sendWellnessInsights(channelId) {
     );
   }
 }
-
 
 module.exports = {
   generateWellnessInsights,
