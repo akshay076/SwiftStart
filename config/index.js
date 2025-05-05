@@ -1,8 +1,11 @@
 // config/index.js
 require('dotenv').config({ path: './variables.env' });
-const { ChatGoogleGenerativeAI } = require("langchain/chat_models/googleai");
+// Remove the ChatGoogleGenerativeAI import - we're not using LangChain anymore
+// const { ChatGoogleGenerativeAI } = require("langchain/chat_models/googleai");
+
 const config = {
   port: process.env.PORT || 3000,
+  // Keeping this for backward compatibility, though we're now using Google AI directly
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     model: process.env.OPENAI_MODEL || 'gpt-4-turbo',

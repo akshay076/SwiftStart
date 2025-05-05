@@ -1,4 +1,4 @@
-// services/langflowService.js
+// services/langflow.js
 // This is now a wrapper around langchainService for backward compatibility
 const langchainService = require('./langchainService');
 
